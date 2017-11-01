@@ -1,9 +1,11 @@
 import numpy as np
+import os
+import pandas as pd
 from ifqi.envs import discrete
 
 
 class RaceTrackEnv(discrete.DiscreteEnv):
-    def __init__(self, track_file, reward_weight):
+    def __init__(self, track_file, reward_weight=None):
 
         """
         The Race Track environment
@@ -13,34 +15,32 @@ class RaceTrackEnv(discrete.DiscreteEnv):
         """
 
         # loading of the csv into a matrix
-        self.track = track = np.loadtxt(open(track_file, "rb"), delimiter=",", skiprows=1)
+        self.track = track = self._load_convert_csv(track_file)
         # computation of the track dimensions
         self.nrow, self.ncol = nrow, ncol = track.shape
         # linearized rep of the 2D matrix
-        self.lin = lin = np.argwhere(track != ' ' & track != '4')
+        self.lin = lin = np.argwhere(np.bitwise_and(track != ' ', track != '4'))
         # number of valid (x,y) tuple
         self.nlin = nlin = lin.shape[0]
+
+        self.horizon = 100
+        self.gamma = 0.99
 
         # nA ---
         nA = 5  # 0=KEEP, 1=INCx, 2=INCy, 3=DECx, 4=DECy
 
         # nS ---
-        nvel = 5
-        vel = [-2, -1, 0, 1, 2]
+        self.vel = vel = [-2, -1, 0, 1, 2]
+        self.nvel = nvel = len(vel)
+        self.min_vel, self.max_vel = min(vel), max(vel)
         nS = nlin * nvel * nvel  # state=(x,y,vx,vy)
 
         # isd ---
-        isd = np.array(track[lin] == '1').astype('float64').ravel()
+        isd = np.array(track[tuple(lin.T)] == '1').astype('float64').ravel()
         isd /= isd.sum()
 
         # P ---
         P = {s: {a: [] for a in range(nA)} for s in range(nS)}
-
-        # form state to index
-        def s_to_i(x, y, vx, vy):
-            s_lin = np.where((lin == (x, y)).all(axis=1))[0]
-            index = s_lin * nvel * nvel + vx * nvel + vy
-            return index
 
         # from (vx,vy) to the set of valid actions
         def valid_a(vx, vy):
@@ -76,7 +76,7 @@ class RaceTrackEnv(discrete.DiscreteEnv):
         def check_valid(x, y):
             valid = True
             # check isOutOfBound
-            if x < 0 or x > nrow or y < 0 or y > ncol:
+            if x < 0 or x >= nrow or y < 0 or y >= ncol:
                 valid = False
             # check isBlank
             elif track[x, y] == ' ':
@@ -92,9 +92,9 @@ class RaceTrackEnv(discrete.DiscreteEnv):
             step = 0.1
             A = np.array([x1, y1])
             B = np.array([x2, y2])
-            for k in xrange(step, 1-step, step):
+            for k in np.arange(step, 1., step):
                 p = k * B + (1-k) * A
-                p = np.floor(p)
+                p = np.floor(p).astype(int)
                 if check_valid(p[0], p[1]):
                     valid = False
             return valid
@@ -146,18 +146,23 @@ class RaceTrackEnv(discrete.DiscreteEnv):
         for [x, y] in lin:
             for vx in vel:
                 for vy in vel:
-                    s = s_to_i(x, y, vx, vy)
+                    s = self._s_to_i(x, y, vx, vy)
                     speed = vx ** 2 + vy ** 2
-                    actions = valid_a(vx,vy)
-                    for a in actions:
-                        li = P[s][a]
+
+                    valid_actions = valid_a(vx,vy)
+                    actions = np.zeros(nA, dtype=int)
+                    actions[valid_actions] = valid_actions
+                    #Tying to perform an invalid action is like doing nothing
+
+                    for a_index, a_value in enumerate(actions):
+                        li = P[s][a_index]
                         type = track[x, y]
                         if type == '2':  # if s is goal state
                             li.append((1.0, s, 0, True))
                         else:
                             for outcome in [0, 1]:
-                                (nx, ny, nvx, nvy) = next_s(x, y, vx, vy, a, outcome)
-                                ns = s_to_i(nx, ny, nvx, nvy)
+                                (nx, ny, nvx, nvy) = next_s(x, y, vx, vy, a_value, outcome)
+                                ns = self._s_to_i(nx, ny, nvx, nvy)
                                 ntype = track[nx, ny]
                                 reward = rstate(nx, ny, nvx, nvy, reward_weight)
                                 done = (ntype == '2')
@@ -170,11 +175,30 @@ class RaceTrackEnv(discrete.DiscreteEnv):
 
         super(RaceTrackEnv, self).__init__(nS, nA, P, isd)
 
+        # form state to index
+    def _s_to_i(self, x, y, vx, vy):
+        s_lin = np.asscalar(np.where((self.lin == (x, y)).all(axis=1))[0])
+        index = s_lin * self.nvel * self.nvel + (vx - self.min_vel) * \
+                    self.nvel + (vy - self.min_vel)
+        return index
+
+    def _load_convert_csv(self, track_file):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        path = dir_path + '/tracks/' + track_file + '.csv'
+        data_frame = pd.read_csv(path, sep=',', dtype=object)
+        data_frame = data_frame.replace(np.nan, ' ', regex=True)
+        return data_frame.values
+
     def reset(self):
         rands = discrete.categorical_sample(self.isd, self.np_random)
         [x, y] = self.lin[rands]
-        self.s = (x, y, 0, 0)
+        s = self._s_to_i(x, y, 0, 0)
+        self.s = np.array([s]).ravel()
         return self.s
 
     def get_state(self):
         return self.s
+
+    #def step(self, a):
+    #    self._step(np.asscalar(a))
+

@@ -46,14 +46,15 @@ class DiscreteEnv(Env):
         return [seed]
 
     def _reset(self):
-        self.s = categorical_sample(self.isd, self.np_random)
+        s = categorical_sample(self.isd, self.np_random)
         self.lastaction=None
+        self.s = np.array([s]).ravel()
         return self.s
 
     def _step(self, a):
-        transitions = self.P[self.s][a]
+        transitions = self.P[np.asscalar(self.s)][np.asscalar(a)]
         i = categorical_sample([t[0] for t in transitions], self.np_random)
         p, s, r, d= transitions[i]
-        self.s = s
-        self.lastaction=a
-        return (s, r, d, {"prob" : p})
+        self.s = np.array([s]).ravel()
+        self.lastaction = a
+        return (self.s, r, d, {"prob" : p})
