@@ -1,5 +1,5 @@
 import numpy as np
-from ifqi.envs.race_track_configurableX import RaceTrackConfigurableEnv
+from ifqi.envs.race_track_configurable import RaceTrackConfigurableEnv
 from ifqi.evaluation import evaluation
 
 class RandomPolicy(object):
