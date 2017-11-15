@@ -4,13 +4,15 @@ import pandas as pd
 from ifqi.envs import discrete
 
 
-class RaceTrackEnv(discrete.DiscreteEnv):
-    def __init__(self, track_file, reward_weight=None):
+class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
+    def __init__(self, track_file, initial_configuration, reward_weight=None):
 
         """
-        The Race Track environment
+        The Race Track Configurable environment:
+        formulation of Race Track compatible with the configurable MDPs context
 
         :param track_file: csv file describing the track
+        :param initial_configuration: coefficient describing the initial model
         :param reward_weight: input vector to weight the reward basis vector
         """
 
@@ -27,20 +29,26 @@ class RaceTrackEnv(discrete.DiscreteEnv):
         self.gamma = 0.99
 
         # nA ---
-        nA = 5  # 0=KEEP, 1=INCx, 2=INCy, 3=DECx, 4=DECy
+        self.nA = nA = 5  # 0=KEEP, 1=INCx, 2=INCy, 3=DECx, 4=DECy
 
         # nS ---
         self.vel = vel = [-2, -1, 0, 1, 2]
         self.nvel = nvel = len(vel)
         self.min_vel, self.max_vel = min(vel), max(vel)
-        nS = nlin * nvel * nvel  # state=(x,y,vx,vy)
+        self.nS = nS = nlin * nvel * nvel  # state=(x,y,vx,vy)
 
         # isd ---
         isd = np.array(track[tuple(lin.T)] == '1').astype('float64').ravel()
         isd /= isd.sum()
 
-        # P ---
-        P = {s: {a: [] for a in range(nA)} for s in range(nS)}
+        # P -------------------------
+        self.max_psucc = max_psucc = 0.9
+        self.min_psucc = min_psucc = 0.1
+        self.max_speed = max_speed = 2 * (max(vel) ** 2)
+
+        # P1 and P2 are two extreme models that we aim to combine optimally
+        self.P1 = {s: {a: [] for a in range(nA)} for s in range(nS)}
+        self.P2 = {s: {a: [] for a in range(nA)} for s in range(nS)}
 
         # from (vx,vy) to the set of valid actions
         def valid_a(vx, vy):
@@ -142,7 +150,7 @@ class RaceTrackEnv(discrete.DiscreteEnv):
             # return of the validated next state
             return (nx, ny, nvx, nvy)
 
-        # filling the value of P
+        # filling the value of P1 and P2
         for [x, y] in lin:
             for vx in vel:
                 for vy in vel:
@@ -155,10 +163,12 @@ class RaceTrackEnv(discrete.DiscreteEnv):
                     #Tying to perform an invalid action is like doing nothing
 
                     for a_index, a_value in enumerate(actions):
-                        li = P[s][a_index]
+                        li1 = self.P1[s][a_index]
+                        li2 = self.P2[s][a_index]
                         type = track[x, y]
                         if type == '2':  # if s is goal state
-                            li.append((1.0, s, 0, True))
+                            li1.append((1.0, s, 0, True))
+                            li2.append((1.0, s, 0, True))
                         else:
                             for outcome in [0, 1]:
                                 (nx, ny, nvx, nvy) = next_s(x, y, vx, vy, a_value, outcome)
@@ -166,16 +176,20 @@ class RaceTrackEnv(discrete.DiscreteEnv):
                                 ntype = track[nx, ny]
                                 reward = rstate(nx, ny, nvx, nvy, reward_weight)
                                 done = (ntype == '2')
-                                if speed < 2:
-                                    prob = 0.9 * outcome + 0.1 * (1 - outcome)
-                                    li.append((prob, ns, reward, done))
-                                else:
-                                    prob = 0.6 * outcome + 0.4 * (1 - outcome)
-                                    li.append((prob, ns, reward, done))
+                                psucc1 = min_psucc + ((max_psucc - min_psucc) / max_speed) * speed
+                                psucc2 = max_psucc - ((max_psucc - min_psucc) / max_speed) * speed
+                                prob1 = psucc1 * outcome + (1 - psucc1) * (1 - outcome)
+                                prob2 = psucc2 * outcome + (1 - psucc2) * (1 - outcome)
+                                li1.append((prob1, ns, reward, done))
+                                li2.append((prob2, ns, reward, done))
 
-        super(RaceTrackEnv, self).__init__(nS, nA, P, isd)
+        # linear combination of P1,P2 with parameter k
+        k = initial_configuration
+        P = self.model_configuration(k)
+        super(RaceTrackConfigurableEnv, self).__init__(nS, nA, P, isd)
 
-        # form state to index
+
+    # form state to index
     def _s_to_i(self, x, y, vx, vy):
         s_lin = np.asscalar(np.where((self.lin == (x, y)).all(axis=1))[0])
         index = s_lin * self.nvel * self.nvel + (vx - self.min_vel) * \
@@ -189,6 +203,23 @@ class RaceTrackEnv(discrete.DiscreteEnv):
         data_frame = data_frame.replace(np.nan, ' ', regex=True)
         return data_frame.values
 
+    # linear combination of the extreme models(P1,P2) with parameter k
+    def model_configuration(self, k):
+        model = {s: {a: [] for a in range(self.nA)} for s in range(self.nS)}
+        for s in range(self.nS):
+            for a in range(self.nA):
+                li1 = self.P1[s][a]
+                li2 = self.P2[s][a]
+                for count in range(len(li1)):
+                    prob1 = li1[count][0]
+                    prob2 = li2[count][0]
+                    prob = k * prob1 + (1 - k) * prob2
+                    ns = li1[count][1]
+                    reward = li1[count][2]
+                    done = li1[count][3]
+                    model[s][a].append((prob, ns, reward, done))
+        return model
+
     def reset(self):
         rands = discrete.categorical_sample(self.isd, self.np_random)
         [x, y] = self.lin[rands]
@@ -198,3 +229,7 @@ class RaceTrackEnv(discrete.DiscreteEnv):
 
     def get_state(self):
         return self.s
+
+    #def step(self, a):
+    #    self._step(np.asscalar(a))
+
