@@ -198,4 +198,3 @@ class RaceTrackEnv(discrete.DiscreteEnv):
 
     def get_state(self):
         return self.s
-
