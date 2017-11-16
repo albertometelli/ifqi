@@ -48,9 +48,9 @@ class RaceTrackEnv(discrete.DiscreteEnv):
             if vx < 2:
                 actions.append(1)  # INCx
             if vx > -2:
-                actions.append(2)  # DECx
+                actions.append(3)  # DECx
             if vy < 2:
-                actions.append(3)  # INCy
+                actions.append(2)  # INCy
             if vy > -2:
                 actions.append(4)  # DECy
             return actions
