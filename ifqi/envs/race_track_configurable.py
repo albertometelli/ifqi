@@ -26,7 +26,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.nlin = nlin = lin.shape[0]
 
         self.horizon = 100
-        self.gamma = 0.99
+        self.gamma = 0.95
 
         # nA ---
         self.nA = nA = 5  # 0=KEEP, 1=INCx, 2=INCy, 3=DECx, 4=DECy
@@ -50,23 +50,10 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.P1 = {s: {a: [] for a in range(nA)} for s in range(nS)}
         self.P2 = {s: {a: [] for a in range(nA)} for s in range(nS)}
 
-        # from (vx,vy) to the set of valid actions
-        def valid_a(vx, vy):
-            actions = [0]  # KEEP
-            if vx < 2:
-                actions.append(1)  # INCx
-            if vx > -2:
-                actions.append(3)  # DECx
-            if vy < 2:
-                actions.append(2)  # INCy
-            if vy > -2:
-                actions.append(4)  # DECy
-            return actions
-
         # reward computation
         def rstate(x, y, vx, vy, weight):
             if weight is None:
-                weight = [1, 0, 0, 0, 0]
+                weight = [100, 0, 0, 0, 0]
             type = track[x, y]
             speed = vx ** 2 + vy ** 2
             isGoal = type == '2'
@@ -157,7 +144,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                     s = self._s_to_i(x, y, vx, vy)
                     speed = vx ** 2 + vy ** 2
 
-                    valid_actions = valid_a(vx,vy)
+                    valid_actions = self._valid_a(vx, vy)
                     actions = np.zeros(nA, dtype=int)
                     actions[valid_actions] = valid_actions
                     #Tying to perform an invalid action is like doing nothing
@@ -185,9 +172,21 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
 
         # linear combination of P1,P2 with parameter k
         k = initial_configuration
-        P = self.model_configuration(k)
+        self.P = P = self.model_configuration(k)
         super(RaceTrackConfigurableEnv, self).__init__(nS, nA, P, isd)
 
+    # from (vx,vy) to the set of valid actions
+    def _valid_a(self, vx, vy):
+        actions = [0]  # KEEP
+        if vx < 2:
+            actions.append(1)  # INCx
+        if vx > -2:
+            actions.append(3)  # DECx
+        if vy < 2:
+            actions.append(2)  # INCy
+        if vy > -2:
+            actions.append(4)  # DECy
+        return actions
 
     # form state to index
     def _s_to_i(self, x, y, vx, vy):
@@ -195,6 +194,19 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         index = s_lin * self.nvel * self.nvel + (vx - self.min_vel) * \
                     self.nvel + (vy - self.min_vel)
         return index
+
+    # form index to state
+    def _i_to_s(self, index):
+        # vy computation
+        vy_off = index % self.nvel
+        vy = vy_off + self.min_vel
+        # vx computation
+        vx_off = (index - vy_off) % (self.nvel * self.nvel)
+        vx = (vx_off / self.nvel) + self.min_vel
+        # s_lin computation
+        s_lin = (index - vx_off - vy_off) / (self.nvel * self.nvel)
+        x, y = self.lin[s_lin]
+        return (x, y, vx, vy)
 
     def _load_convert_csv(self, track_file):
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -230,6 +242,18 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
     def get_state(self):
         return self.s
 
-    #def step(self, a):
-    #    self._step(np.asscalar(a))
+    # from state index to valid actions
+    def get_valid_actions(self, state_index):
+        state = self._i_to_s(state_index)
+        vx = state[2]
+        vy = state[3]
+        valid_actions = self._valid_a(vx, vy)
+        actions = np.array(valid_actions)
+        return actions
 
+    # method to set the MDP current state
+    def set_state(self, s):
+        if s in self.P:
+            self.s = s
+        else:
+            raise Exception('Invalid state setting')
