@@ -26,7 +26,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.nlin = nlin = lin.shape[0]
 
         self.horizon = 100
-        self.gamma = 0.95
+        self.gamma = 0.99
 
         # nA ---
         self.nA = nA = 5  # 0=KEEP, 1=INCx, 2=INCy, 3=DECx, 4=DECy
@@ -53,7 +53,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         # reward computation
         def rstate(x, y, vx, vy, weight):
             if weight is None:
-                weight = [100, 0, 0, 0, 0]
+                weight = [1, 0, 0, 0, 0]
             type = track[x, y]
             speed = vx ** 2 + vy ** 2
             isGoal = type == '2'

@@ -3,6 +3,7 @@ import math
 
 from ifqi.utils.uniform_policy import UniformPolicy
 from ifqi.utils.spi_policy import SpiPolicy
+from ifqi.evaluation.evaluation import collect_episodes
 
 
 class SafePolicyIterator(object):
@@ -18,9 +19,13 @@ class SafePolicyIterator(object):
         """
         self.mdp = mdp
         self.gamma = mdp.gamma
+        self.horizon = mdp.horizon
         self.eps = eps
         self.delta = delta
         self.uniform_policy = UniformPolicy(mdp)
+        self.count = 0
+        self.iteration = 0
+        self.evaluations = list()
 
 
     # implementation of whole algorithm: PolChooser + improvement
@@ -33,12 +38,42 @@ class SafePolicyIterator(object):
 
         # update policy until convergence
         target_policy, er_advantage = self.pol_chooser(policy)
+        #########
+        cond = eps / (1 - gamma)
+        #########
         while er_advantage > (eps / (1 - gamma)):
             distance = self.pol_distance(target_policy, policy)
-            alfa_star = (((1 - gamma) ** 3) / gamma) *\
-                        (er_advantage / (distance ** 2))
+            A = ((1 - gamma)) / (gamma)
+            B = er_advantage / ((distance) * 2)
+            alfa_star = A * B
             alfa = min(1, alfa_star)
             policy = self.pol_combination(alfa, target_policy, policy)
+            ########
+            n_episodes = 100
+            episodes = collect_episodes(self.mdp, policy, self.horizon, n_episodes)
+            sum_J = 0
+            discount = self.gamma
+            for count_step in range(len(episodes)):
+                step = episodes[count_step]
+                sum_J = sum_J + step[2] * discount
+                if step[5] != 1:
+                    discount = discount * self.gamma
+            evaluation = sum_J / n_episodes
+            self.evaluations.append(evaluation)
+            moving_average = 0
+            moving_count = self.iteration
+            while moving_count >= 0 and moving_count >= (self.iteration - 10):
+                moving_average = moving_average + self.evaluations[moving_count]
+                moving_count = moving_count - 1
+            moving_average = moving_average / 10
+            print('----------------------')
+            print('Policy evaluation: {0}'.format(evaluation))
+            print('Evaluation moving average (10): {0}'.format(moving_average))
+            print('Episode reaching goal state: {0}'.format(self.count))
+            self.count = 0
+            print('Iteration: {0}'.format(self.iteration))
+            self.iteration = self.iteration + 1
+            ########
             target_policy, er_advantage = self.pol_chooser(policy)
 
         return policy
@@ -133,6 +168,7 @@ class SafePolicyIterator(object):
         mdp = self.mdp
         nA = mdp.nA
         nS = mdp.nS
+        horizon = self.horizon
         gamma = self.gamma
         eps = self.eps
         delta = self.delta
@@ -152,41 +188,53 @@ class SafePolicyIterator(object):
         # STATE SAMPLING PROCEDURE:
         # sample a sequence of states
         # following the current policy
-        S = np.zeros(N, dtype=int)
-        S[0] = mdp.reset()
+        S = np.zeros(shape=(N,2), dtype=int)
+        step_count = 0
+        S[0] = [mdp.reset(), step_count]
         # filling the array of samples
         for i in range(1, N):
-            # we accept a new sample in the episode
-            # with probability gamma, reset otherwise
-            coin = np.random.binomial(1, gamma)
-            if coin == 1:
-                prev_state = S[i-1]
-                action = policy.draw_action(prev_state, False)
-                action = np.array([action]).ravel()
-                step = mdp.step(action)
-                state = step[0]
-                done = step[2]
-                # reset if the state is terminal
-                if done:
-                    S[i] = mdp.reset()
+            # we extract a new sample in the
+            # episode until the horizon is met
+            if step_count < horizon:
+                # we accept a new sample in the episode
+                # with probability gamma, reset otherwise
+                coin = np.random.binomial(1, gamma)
+                if coin == 1:
+                    prev_state = S[i-1][0]
+                    action = policy.draw_action(prev_state, False)
+                    action = np.array([action]).ravel()
+                    step = mdp.step(action)
+                    state = step[0]
+                    done = step[2]
+                    # reset if the state is terminal
+                    if done:
+                        step_count = 0
+                        S[i] = [mdp.reset(), step_count]
+                    else:
+                        step_count = step_count + 1
+                        S[i] = [state, step_count]
                 else:
-                    S[i] = state
+                    step_count = 0
+                    S[i] = [mdp.reset(), step_count]
             else:
-                S[i] = mdp.reset()
+                step_count = 0
+                S[i] = [mdp.reset(), step_count]
+
 
         # STATE-ACTION SAMPLING PROCEDURE:
         # sample an action, uniformly on the action space,
         # for each state in the array S
-        SA = np.zeros(shape=(N,2), dtype=int)
-        state = S[0]
+        SA = np.zeros(shape=(N,3), dtype=int)
+        state = S[0][0]
+        step_count = S[0][1]
         action = uniform_policy.draw_action(state, False)
         action = np.array([action]).ravel()
-        SA[0] = [state, action]
+        SA[0] = [state, action, step_count]
         # filling the array of samples
         for i in range(1, N):
-            state = S[i]
+            state = S[i][0]
             action = uniform_policy.draw_action(state, False)
-            SA[i] = [state, action]
+            SA[i] = [state, action, step_count]
 
         # STATE-ACTION-Q SAMPLING PROCEDURE
         # compute the cumulative discounted return
@@ -195,14 +243,16 @@ class SafePolicyIterator(object):
         state = SA[0][0]
         action = SA[0][1]
         action = np.array([action]).ravel()
-        Qi = self.evaluation(state, action, policy)
+        step_count = SA[0][2]
+        Qi = self.evaluation(state, action, policy, step_count)
         SAQ[0] = [state, action, Qi]
         # filling the array of samples
         for i in range(1, N):
             state = SA[i][0]
             action = SA[i][1]
             action = np.array([action]).ravel()
-            Qi = self.evaluation(state, action, policy)
+            step_count = SA[i][2]
+            Qi = self.evaluation(state, action, policy, step_count)
             SAQ[i] = [state, action, Qi]
 
         return SAQ
@@ -210,17 +260,19 @@ class SafePolicyIterator(object):
 
     # method to compute the discounted return
     # for a given (s,a) pair and a given policy
-    def evaluation(self, state, action, policy):
+    def evaluation(self, state, action, policy, step_count):
 
         # initializations
         mdp = self.mdp
         gamma = self.gamma
+        horizon = self.horizon
         mdp.set_state(state)
         # first step: take action from state
         step = mdp.step(action)
+        step_count = step_count + 1
         state = step[0]
         reward = step[1]
-        done = step[2]
+        done = step[2] or (step_count >= horizon)
         discounted_return = reward
         # loop to reach the end of episode
         # following the given policy
@@ -229,9 +281,14 @@ class SafePolicyIterator(object):
             action = policy.draw_action(state, False)
             action = np.array([action]).ravel()
             step = mdp.step(action)
+            step_count = step_count + 1
             state = step[0]
             reward = step[1]
-            done = step[2]
+            #########
+            if step[2]:
+                self.count = self.count + 1
+            #########
+            done = step[2] or (step_count >= horizon)
             discounted_return = discounted_return + ((gamma ** t) * reward)
             t = t + 1
 
