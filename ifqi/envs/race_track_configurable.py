@@ -50,6 +50,10 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.mu = mu
 
         # P -------------------------
+        self.P = {s: {a: [] for a in range(nA)} for s in range(nS)}
+        self.P_sas = np.zeros(shape=(nS, nA, nS))
+        self.P_sa = np.zeros(shape=(nS * nA, nS))
+
         self.max_psucc = max_psucc = 0.9
         self.min_psucc = min_psucc = 0.1
         self.max_speed = max_speed = 2 * (max(vel) ** 2)
@@ -178,11 +182,23 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                                 li1.append((prob1, ns, reward, done))
                                 li2.append((prob2, ns, reward, done))
 
+        # instantiation of model rep for P1 and P2
+        self.P1_sas = self.p_sas(self.P1)
+        self.P1_sa = self.p_sa(self.P1_sas)
+        self.P2_sas = self.p_sas(self.P2)
+        self.P2_sa = self.p_sa(self.P2_sas)
         # linear combination of P1,P2 with parameter k
         k = initial_configuration
         self.P = P = self.model_configuration(k)
-        self.P_sas = self.P_sas()
-        self.P_sa = self.P_sa()
+
+        # R ----------
+        R = np.zeros(nS)
+        # reward vector computation
+        for s in range(nS):
+            (x, y, vx, vy) = self._i_to_s(s)
+            R[s] = rstate(x, y, vx, vy, reward_weight)
+
+        # call the init method of the super class (Discrete)
         super(RaceTrackConfigurableEnv, self).__init__(nS, nA, P, isd)
 
     # from (vx,vy) to the set of valid actions
@@ -240,6 +256,10 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                     reward = li1[count][2]
                     done = li1[count][3]
                     model[s][a].append((prob, ns, reward, done))
+        # updating the P attributes consistently
+        self.P = model
+        self.P_sas = self.p_sas(self.P)
+        self.P_sa = self.p_sa(self.P_sas)
         return model
 
     # method to reset the MDP state to an initial one
@@ -271,12 +291,11 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
             raise Exception('Invalid state setting')
 
     # method to populate the P_sas
-    def P_sas(self):
+    def p_sas(self, P):
 
         # initializations
         nS = self.nS
         nA = self.nA
-        P = self.P
 
         # instantiation of an SxAxS matrix to collect the probabilities
         P_sas = np.zeros(shape=(nS, nA, nS))
@@ -299,12 +318,11 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         return P_sas
 
     # method to populate the P_sa
-    def P_sa(self):
+    def p_sa(self, P_sas):
 
         # initializations
         nS = self.nS
         nA = self.nA
-        P_sas = self.P_sas
 
         P_sa = np.zeros(shape=(nS * nA, nS))
         a = 0

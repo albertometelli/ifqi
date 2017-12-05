@@ -44,7 +44,7 @@ class SPI(object):
         prev_target_policy = initial_policy
         d_mu_thresh = 0.0001
         Q_thresh = 0.0001
-        iteration_horizon = 2000
+        iteration_horizon = 3000
 
         # update policy until convergence
         d_mu_pi = self.discounted_state_distribution(policy, d_mu_thresh)
@@ -59,7 +59,7 @@ class SPI(object):
             policy = self.pol_combination(alfa, target_policy, policy)
             d_mu_pi = self.discounted_state_distribution(policy, d_mu_thresh)
             Q = self.pol_evaluation(policy, Q_thresh)
-            J_pi = self.pol_performance(policy, d_mu_pi, Q)
+            J_pi = self.pol_performance(policy, Q)
 
             self._utility_trace(J_pi, alfa_star, er_advantage, convergence_condition,
                                 distance_sup, distance_mean, target_policy, prev_target_policy)
@@ -79,7 +79,7 @@ class SPI(object):
         policy = initial_policy
         d_mu_thresh = 0.0001
         Q_thresh = 0.0001
-        iteration_horizon = 2000
+        iteration_horizon = 3000
 
         # update policy until convergence
         d_mu_pi = self.discounted_state_distribution(policy, d_mu_thresh)
@@ -105,7 +105,7 @@ class SPI(object):
             policy = self.pol_combination(alfa, target, policy)
             d_mu_pi = self.discounted_state_distribution(policy, d_mu_thresh)
             Q = self.pol_evaluation(policy, Q_thresh)
-            J_pi = self.pol_performance(policy, d_mu_pi, Q)
+            J_pi = self.pol_performance(policy, Q)
 
             self._utility_trace(J_pi, alfa_star, er_adv, convergence_condition,
                                 dist_sup, dist_mean, target, target_old)
@@ -149,11 +149,12 @@ class SPI(object):
 
 
     # method to compute the performance of a given policy
-    def pol_performance(self, policy, d_mu_pi, Q):
+    def pol_performance(self, policy, Q):
 
         # initializations
         policy_rep = policy.get_rep()
         mdp = self.mdp
+        mu = mdp.mu
         nS = mdp.nS
 
         # V-function computation
@@ -164,7 +165,7 @@ class SPI(object):
             V[s] = np.dot(pi_arr, q_arr)
 
         # performance computation
-        J_pi = np.dot(d_mu_pi, V)
+        J_pi = np.dot(mu, V)
 
         return J_pi
 
