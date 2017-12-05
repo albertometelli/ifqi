@@ -25,8 +25,8 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         # number of valid (x,y) tuple
         self.nlin = nlin = lin.shape[0]
 
-        self.horizon = 100
-        self.gamma = 0.99
+        self.horizon = 20
+        self.gamma = 0.9
 
         # nA ---
         self.nA = nA = 5  # 0=KEEP, 1=INCx, 2=INCy, 3=DECx, 4=DECy
@@ -38,8 +38,16 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.nS = nS = nlin * nvel * nvel  # state=(x,y,vx,vy)
 
         # isd ---
+        mu = np.zeros(nS)
         isd = np.array(track[tuple(lin.T)] == '1').astype('float64').ravel()
         isd /= isd.sum()
+        for s in range(nlin):
+            if isd[s] != 0:
+                [x, y] = lin[s]
+                init_s = self._s_to_i(x, y, 0, 0)
+                mu[init_s] = 1
+        mu /= mu.sum()
+        self.mu = mu
 
         # P -------------------------
         self.max_psucc = max_psucc = 0.9
@@ -173,6 +181,8 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         # linear combination of P1,P2 with parameter k
         k = initial_configuration
         self.P = P = self.model_configuration(k)
+        self.P_sas = self.P_sas()
+        self.P_sa = self.P_sa()
         super(RaceTrackConfigurableEnv, self).__init__(nS, nA, P, isd)
 
     # from (vx,vy) to the set of valid actions
@@ -232,6 +242,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                     model[s][a].append((prob, ns, reward, done))
         return model
 
+    # method to reset the MDP state to an initial one
     def reset(self):
         rands = discrete.categorical_sample(self.isd, self.np_random)
         [x, y] = self.lin[rands]
@@ -239,6 +250,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.s = np.array([s]).ravel()
         return self.s
 
+    # method to get the current MDP state
     def get_state(self):
         return self.s
 
@@ -257,3 +269,51 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
             self.s = s
         else:
             raise Exception('Invalid state setting')
+
+    # method to populate the P_sas
+    def P_sas(self):
+
+        # initializations
+        nS = self.nS
+        nA = self.nA
+        P = self.P
+
+        # instantiation of an SxAxS matrix to collect the probabilities
+        P_sas = np.zeros(shape=(nS, nA, nS))
+
+        # loop to fill the probability values
+        for s in range(nS):
+            for a in range(nA):
+                list = P[s][a]
+                for s1 in range(nS):
+                    prob_sum = 0
+                    prob_count = 0
+                    for elem in list:
+                        if elem[1] == s1:
+                            prob_sum = prob_sum + elem[0]
+                            prob_count = prob_count + 1
+                    if prob_count != 0:
+                        p = prob_sum
+                        P_sas[s][a][s1] = p
+
+        return P_sas
+
+    # method to populate the P_sa
+    def P_sa(self):
+
+        # initializations
+        nS = self.nS
+        nA = self.nA
+        P_sas = self.P_sas
+
+        P_sa = np.zeros(shape=(nS * nA, nS))
+        a = 0
+        s = 0
+        for sa in range(nS * nA):
+            if a == 5:
+                a = 0
+                s = s + 1
+            P_sa[sa] = P_sas[s][a]
+            a = a + 1
+
+        return P_sa
