@@ -37,12 +37,12 @@ class LQG1D(gym.Env):
     }
 
     def __init__(self, discrete_reward=False):
-        self.horizon = 6
+        self.horizon = 20
         self.gamma = 0.99
 
         self.discrete_reward = discrete_reward
-        self.max_pos = 10.0
-        self.max_action = 8.0
+        self.max_pos = 4.0
+        self.max_action = 4.0
         self.sigma_noise = 0.1
         self.A = np.array([1]).reshape((1, 1))
         self.B = np.array([1]).reshape((1, 1))
