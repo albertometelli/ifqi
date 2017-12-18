@@ -197,6 +197,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         for s in range(nS):
             (x, y, vx, vy) = self._i_to_s(s)
             R[s] = rstate(x, y, vx, vy, reward_weight)
+        self.R = R
 
         # call the init method of the super class (Discrete)
         super(RaceTrackConfigurableEnv, self).__init__(nS, nA, P, isd)
@@ -274,6 +275,10 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
     def get_state(self):
         return self.s
 
+    # method to get the PHI vector
+    def get_phi(self):
+        return [self.P1_sa, self.P2_sa]
+
     # from state index to valid actions
     def get_valid_actions(self, state_index):
         state = self._i_to_s(state_index)
@@ -289,6 +294,11 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
             self.s = s
         else:
             raise Exception('Invalid state setting')
+
+    # method to set gamma
+    def set_gamma(self, gamma):
+        self.gamma = gamma
+
 
     # method to populate the P_sas
     def p_sas(self, P):
