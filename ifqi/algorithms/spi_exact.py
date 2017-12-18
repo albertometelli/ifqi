@@ -35,6 +35,7 @@ class SPI(object):
 
 
     # implementation of whole algorithm: PolChooser + improvement
+    # version with mean value, without the target trick
     def safe_policy_iteration(self, initial_policy):
 
         # initializations
@@ -71,6 +72,7 @@ class SPI(object):
 
 
     # implementation of whole algorithm: PolChooser + improvement
+    # best of breed implementation with target trick
     def safe_policy_iteration_target_trick(self, initial_policy):
 
         # initializations
@@ -101,6 +103,53 @@ class SPI(object):
                     dist_mean = dist_mean_old
                     target = target_old
             alfa_star = ((1 - gamma) * er_adv) / (2 * gamma * dist_sup * dist_mean)
+            alfa = min(1, alfa_star)
+            policy = self.pol_combination(alfa, target, policy)
+            d_mu_pi = self.discounted_state_distribution(policy, d_mu_thresh)
+            Q = self.pol_evaluation(policy, Q_thresh)
+            J_pi = self.pol_performance(policy, Q)
+
+            self._utility_trace(J_pi, alfa_star, er_adv, convergence_condition,
+                                dist_sup, dist_mean, target, target_old)
+
+            target_old = target
+            er_adv, dist_sup, dist_mean, target = self.pol_chooser(policy, d_mu_pi, Q)
+
+        return policy
+
+
+    # implementation of whole algorithm: PolChooser + improvement
+    # version with target trick without mean value
+    def safe_policy_iteration_target_trick_sup(self, initial_policy):
+
+        # initializations
+        gamma = self.gamma
+        eps = self.eps
+        policy = initial_policy
+        d_mu_thresh = 0.0001
+        Q_thresh = 0.0001
+        iteration_horizon = 3000
+
+        # update policy until convergence
+        d_mu_pi = self.discounted_state_distribution(policy, d_mu_thresh)
+        Q = self.pol_evaluation(policy, Q_thresh)
+        er_adv, dist_sup, dist_mean, target = self.pol_chooser(policy, d_mu_pi, Q)
+        target_old = target
+        convergence_condition = eps / (1 - gamma)
+        while er_adv > convergence_condition and self.iteration < iteration_horizon:
+            # check if the target has changed: if that is the case compute the bounds
+            # for both target and target_old and select the best one
+            if not self.pol_equivalence_check(target, target_old):
+                er_adv_old, dist_sup_old, dist_mean_old = self.pol_chooser_old(policy, target_old, d_mu_pi, Q)
+                bound_old = ((er_adv_old ** 2) * (1 - gamma)) / (4 * gamma * dist_sup_old * dist_sup_old)
+                bound = ((er_adv ** 2) * (1 - gamma)) / (4 * gamma * dist_sup * dist_sup)
+                # if the target_old is selected update the measures consistently
+                if bound_old > bound:
+                    er_adv = er_adv_old
+                    dist_sup = dist_sup_old
+                    dist_mean = dist_mean_old
+                    target = target_old
+            alfa_star = ((1 - gamma) * er_adv) / (2 * gamma * dist_sup * dist_sup)
             alfa = min(1, alfa_star)
             policy = self.pol_combination(alfa, target, policy)
             d_mu_pi = self.discounted_state_distribution(policy, d_mu_thresh)
@@ -314,6 +363,7 @@ class SPI(object):
         mdp = self.mdp
         nS = mdp.nS
         nA = mdp.nA
+        h = mdp.horizon
         gamma = mdp.gamma
         P_sa = mdp.P_sa
         mu = mdp.mu
@@ -336,15 +386,23 @@ class SPI(object):
         # computation of the SxS matrix P_pi
         P_pi = np.dot(pi, P_sa)
 
-        # value iteration on d_mu
-        delta = 1
-        while delta > threshold:
-            delta = 0
+        # h-iterations on d_mu to have d_mu_h
+        count = 0
+        while count < h:
             dot = np.dot(d_mu, P_pi)
             d_mu_next = (1 - gamma) * mu + gamma * dot
-            max_diff = max(np.absolute(d_mu - d_mu_next))
-            delta = max(delta, max_diff)
             d_mu = d_mu_next
+            count = count + 1
+
+        # # value iteration on d_mu: infinite horizon
+        # delta = 1
+        # while delta > threshold:
+        #     delta = 0
+        #     dot = np.dot(d_mu, P_pi)
+        #     d_mu_next = (1 - gamma) * mu + gamma * dot
+        #     max_diff = max(np.absolute(d_mu - d_mu_next))
+        #     delta = max(delta, max_diff)
+        #     d_mu = d_mu_next
 
         return d_mu
 
