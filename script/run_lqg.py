@@ -2,7 +2,6 @@ from ifqi.envs.lqg1d import LQG1D
 from ifqi.algorithms.policy_gradient.policy import GaussianPolicy
 from ifqi.evaluation.evaluation import collect_episodes
 import numpy as np
-import scipy.stats
 
 
 mdp = LQG1D()
@@ -14,6 +13,8 @@ mub = -0.3
 mut = -.1
 N = 1000
 H = mdp.horizon
+Hmin = 6
+level = .95
 
 #Instantiate policies
 policy = GaussianPolicy(mub, sb**2)
@@ -34,25 +35,48 @@ R = np.array(map(lambda i: (
     np.dot(r[i, :], np.power(mdp.gamma, range(0, H))) - rmin) / (rmax - rmin),
              range(N)))
 
+#Compute Minf
+def Minf(mub, mut, sb, st, max_pos):
+    return ((sb / st) * np.exp ( 0.5 * (mut - mub)**2 * max_pos ** 2 / (sb**2 - st**2)))
+
+#Compute optimal horizon
+def Hstar(Minf, gamma, N, delta):
+    return (int(round((1 / np.log(Minf)) *
+            (np.log( (gamma * Minf - 1) / (np.log(gamma * Minf))) +
+             np.log( np.log(gamma) / (gamma - 1)) +
+             0.5 * (np.log(2 * N) - np.log(np.log(1/delta)))))))
+
 #Compute weight matrix
-W= np.zeros((N, H))
+def W_H(N, H, target, policy):
+    W = np.zeros((N, H))
 
-for i in range (N):
-    W[i,:] = np.array(map(lambda j:
-        target.pdf(np.array([s[i, j]]), np.array([a[i, j]])) / \
-        policy.pdf(np.array([s[i, j]]), np.array([a[i, j]])),
-                      range(H)))
+    for i in range(N):
+        W[i, :] = np.array(map(lambda j:
+                               target.pdf(np.array([s[i, j]]), np.array([a[i, j]])) /
+                               policy.pdf(np.array([s[i, j]]), np.array([a[i, j]])),
+                               range(H)))
+    return (W)
 
-level = .95
+#Compute estimate of J
+def J_hat_H(R, W):
+    return(R * np.prod(W, axis=1))
 
-def bound(R, W, sb, mub, st, mut, N, H, mdp):
-    J_hat = R * np.prod(W, axis=1)
-    MinfH = (sb / st) * np.exp ( 0.5 * (mut - mub)**2 * mdp.max_pos ** 2 / (sb**2 - st**2))
-    boundH = J_hat.mean() - (mdp.gamma**H)/(1-mdp.gamma) - \
-        (1 - (mdp.gamma*MinfH)**H)/(1 - mdp.gamma*MinfH) * \
-        np.sqrt(np.log(1/level) / (2*N))
+#Compute bound
+def bound(N, H, R, mub, mut, sb, st, mdp, delta, target, policy):
+    w_h = W_H(N, H, target, policy)
+    j_hat = J_hat_H(R, w_h)
+    minf = Minf(mub, mut, sb, st, mdp.max_pos)
+    boundH = j_hat.mean() - (mdp.gamma**H)/(1-mdp.gamma) - \
+        (1 - (mdp.gamma*minf)**H)/(1 - mdp.gamma*minf) * \
+        np.sqrt(np.log(1/delta) / (2*N))
     return (boundH)
 
+minf = Minf(mub, mut, sb, st, mdp.max_pos)
+hstar = Hstar(minf, mdp.gamma, N, level)
 
-print("bound ", bound(R, W, sb, mub, st, mut, N, H, mdp))
+boundh = bound(N, H, R, mub, mut, sb, st, mdp, level, target, policy)
+boundstar = bound(N, hstar, R, mub, mut, sb, st, mdp, level, target, policy)
+
+print("boundh ", boundh)
+print("boundstar ", boundstar)
 
