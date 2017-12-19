@@ -1,7 +1,8 @@
 from ifqi.envs.lqg1d import LQG1D
-from ifqi.algorithms.policy_gradient.policy import GaussianPolicy
+from ifqi.algorithms.policy_gradient.policy import GaussianPolicyMean
 from ifqi.evaluation.evaluation import collect_episodes
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 mdp = LQG1D()
@@ -17,8 +18,8 @@ Hmin = 6
 level = .95
 
 #Instantiate policies
-policy = GaussianPolicy(mub, sb**2)
-target = GaussianPolicy(mut, st**2)
+policy = GaussianPolicyMean(mub, sb**2)
+target = GaussianPolicyMean(mut, st**2)
 
 #Collect trajectories
 dataset = collect_episodes(mdp, policy, n_episodes=N)
@@ -79,4 +80,7 @@ boundstar = bound(N, hstar, R, mub, mut, sb, st, mdp, level, target, policy)
 
 print("boundh ", boundh)
 print("boundstar ", boundstar)
+
+real_bound = [bound(N, h, R, mub, mut, sb, st, mdp, level, target, policy) for h in range(1,10)]
+plt.plot(range(1,10), real_bound)
 
