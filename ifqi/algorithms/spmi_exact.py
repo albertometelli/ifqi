@@ -8,18 +8,18 @@ class SPMI(object):
 
     def __init__(self, mdp, eps):
         """
-        Safe Policy Iterator:
-        object that enable the call for exact spi algorithm
+        Safe Policy Model Iterator:
+        object that enable the call for exact spmi algorithms
 
         :param mdp: mdp to solve
         :param eps: accuracy of the spi
-        :param delta: correct estimation probability
         """
         self.mdp = mdp
         self.gamma = mdp.gamma
         self.horizon = mdp.horizon
         self.eps = eps
-        self.uniform_policy = UniformPolicy(mdp)
+        self.iteration_horizon = 2000
+        self.threshold = 0.0001
 
         # attributes related to
         # trace print procedures
@@ -44,8 +44,9 @@ class SPMI(object):
         # initializations
         gamma = self.gamma
         eps = self.eps
-        thresh = 0.0001
-        iteration_horizon = 3000
+        thresh = self.threshold
+        iteration_horizon = self.iteration_horizon
+        self._reset_trace()
 
         # policy chooser
         policy = initial_policy
@@ -63,7 +64,7 @@ class SPMI(object):
 
         # check convergence condition
         convergence = eps / (1 - gamma)
-        while (p_er_adv > convergence or m_er_adv > convergence) and self.iteration < iteration_horizon:
+        while ((p_er_adv + m_er_adv) > convergence) and self.iteration < iteration_horizon:
 
             # alfa star with target trick
             if not self.policy_equiv_check(target, target_old) and not self.policy_equiv_check(policy, target_old):
@@ -91,7 +92,7 @@ class SPMI(object):
             bound_star = float("-inf")
             alfa_star = 0
             beta_star = 0
-            for alfa, beta in [(0, beta), (alfa, 0), (1, beta), (alfa, 1)]:
+            for alfa, beta in [(0, beta), (alfa, 0), (alfa, 1), (1, beta)]:
                 bound = alfa * p_er_adv + beta * m_er_adv - (gamma / 2 * (1 - gamma)) *\
                             ((alfa ** 2) * p_dist_sup * p_dist_mean + gamma * (beta ** 2) * m_dist_sup * m_dist_mean
                              + alfa * beta * p_dist_sup * m_dist_sup + alfa * beta * p_dist_mean + m_dist_sup)
@@ -126,14 +127,17 @@ class SPMI(object):
 
         return policy, model
 
+
     # implementation of safe policy (and) model iteration
-    def safe_policy_model_iteration_sup(self, initial_policy, initial_model):
+    # version with sup distances in alfa, beta computation
+    def spmi_sup_bound(self, initial_policy, initial_model):
 
         # initializations
         gamma = self.gamma
         eps = self.eps
-        thresh = 0.0001
-        iteration_horizon = 1000
+        thresh = self.threshold
+        iteration_horizon = self.iteration_horizon
+        self._reset_trace()
 
         # policy chooser
         policy = initial_policy
@@ -198,6 +202,281 @@ class SPMI(object):
             J_p_m = self.performance(policy, Q)
 
             self._utility_trace(J_p_m, alfa_star, beta_star, p_er_adv, m_er_adv,
+                                p_dist_sup, p_dist_mean, m_dist_sup, m_dist_mean,
+                                target, target_old, target_index, target_index_old, convergence, model)
+
+            # policy chooser
+            target_old = target
+            d_mu = self.discounted_s_distribution(policy)
+            p_er_adv, p_dist_sup, p_dist_mean, target = self.policy_chooser(policy, d_mu, Q)
+
+            # model chooser
+            target_index_old = target_index
+            U = self.model_u(policy, thresh)
+            delta_mu = self.discounted_sa_distribution(policy)
+            m_er_adv, m_dist_sup, m_dist_mean, target_index = self.model_chooser(model, delta_mu, U)
+
+        return policy, model
+
+
+    # implementation of safe policy (and) model iteration
+    # version which avoids full step to the target policy (model)
+    def spmi_no_full_step(self, initial_policy, initial_model):
+
+        # initializations
+        gamma = self.gamma
+        eps = self.eps
+        thresh = self.threshold
+        iteration_horizon = self.iteration_horizon
+        self._reset_trace()
+
+        # policy chooser
+        policy = initial_policy
+        Q = self.policy_q(policy, thresh)
+        d_mu = self.discounted_s_distribution(policy)
+        p_er_adv, p_dist_sup, p_dist_mean, target = self.policy_chooser(policy, d_mu, Q)
+        target_old = target
+
+        # model chooser
+        model = initial_model
+        U = self.model_u(policy, thresh)
+        delta_mu = self.discounted_sa_distribution(policy)
+        m_er_adv, m_dist_sup, m_dist_mean, target_index = self.model_chooser(model, delta_mu, U)
+        target_index_old = target_index
+
+        # check convergence condition
+        convergence = eps / (1 - gamma)
+        while ((p_er_adv + m_er_adv) > convergence) and self.iteration < iteration_horizon:
+
+            # alfa star with target trick
+            if not self.policy_equiv_check(target, target_old) and not self.policy_equiv_check(policy, target_old):
+                er_adv_old, dist_sup_old, dist_mean_old = self.policy_chooser_old(policy, target_old, d_mu, Q)
+                p_bound_old = ((er_adv_old ** 2) * (1 - gamma)) / (4 * gamma * dist_sup_old * dist_mean_old)
+                p_bound = ((p_er_adv ** 2) * (1 - gamma)) / (4 * gamma * p_dist_sup * p_dist_mean)
+                # if the target_old is selected update the measures consistently
+                if p_bound_old > p_bound:
+                    p_er_adv = er_adv_old
+                    p_dist_sup = dist_sup_old
+                    p_dist_mean = dist_mean_old
+                    target = target_old
+            alfa = 0
+            if p_dist_sup != 0:
+                alfa_star = ((1 - gamma) * p_er_adv) / (2 * gamma * p_dist_sup * p_dist_mean)
+                alfa = min(1, alfa_star)
+
+            # beta star
+            beta = 0
+            if m_dist_sup != 0:
+                beta_star = ((1 - gamma) * m_er_adv) / (2 * (gamma ** 2) * m_dist_sup * m_dist_mean)
+                beta = min(1, beta_star)
+
+            # bounds comparison and update selection
+            bound_star = float("-inf")
+            alfa_star = 0
+            beta_star = 0
+            for alfa, beta in [(0, beta), (alfa, 0)]:
+                bound = alfa * p_er_adv + beta * m_er_adv - (gamma / 2 * (1 - gamma)) * \
+                                                            ((alfa ** 2) * p_dist_sup * p_dist_mean + gamma * (
+                                                            beta ** 2) * m_dist_sup * m_dist_mean
+                                                             + alfa * beta * p_dist_sup * m_dist_sup + alfa * beta * p_dist_mean + m_dist_sup)
+                # update selection
+                if bound > bound_star:
+                    bound_star = bound
+                    alfa_star = alfa
+                    beta_star = beta
+
+            # policy and model update
+            policy = self.policy_combination(alfa_star, target, policy)
+            model = self.model_combination(beta_star, target_index, model)
+
+            # performance evaluation
+            Q = self.policy_q(policy, thresh)
+            J_p_m = self.performance(policy, Q)
+
+            self._utility_trace(J_p_m, alfa_star, beta_star, p_er_adv, m_er_adv,
+                                p_dist_sup, p_dist_mean, m_dist_sup, m_dist_mean,
+                                target, target_old, target_index, target_index_old, convergence, model)
+
+            # policy chooser
+            target_old = target
+            d_mu = self.discounted_s_distribution(policy)
+            p_er_adv, p_dist_sup, p_dist_mean, target = self.policy_chooser(policy, d_mu, Q)
+
+            # model chooser
+            target_index_old = target_index
+            U = self.model_u(policy, thresh)
+            delta_mu = self.discounted_sa_distribution(policy)
+            m_er_adv, m_dist_sup, m_dist_mean, target_index = self.model_chooser(model, delta_mu, U)
+
+        return policy, model
+
+
+    # implementation of safe policy (and) model iteration
+    # version which executes a full spi and then a smi
+    def spmi_sequential(self, initial_policy, initial_model):
+
+        # initializations
+        gamma = self.gamma
+        eps = self.eps
+        thresh = self.threshold
+        iteration_horizon = self.iteration_horizon
+        self._reset_trace()
+
+
+        # POLICY LOOP
+
+        # policy chooser
+        policy = initial_policy
+        Q = self.policy_q(policy, thresh)
+        d_mu = self.discounted_s_distribution(policy)
+        p_er_adv, p_dist_sup, p_dist_mean, target = self.policy_chooser(policy, d_mu, Q)
+        target_old = target
+
+        # check convergence condition
+        convergence = eps / (1 - gamma)
+        while (p_er_adv > convergence) and self.iteration < iteration_horizon:
+
+            # alfa star with target trick
+            if not self.policy_equiv_check(target, target_old) and not self.policy_equiv_check(policy, target_old):
+                er_adv_old, dist_sup_old, dist_mean_old = self.policy_chooser_old(policy, target_old, d_mu, Q)
+                p_bound_old = ((er_adv_old ** 2) * (1 - gamma)) / (4 * gamma * dist_sup_old * dist_mean_old)
+                p_bound = ((p_er_adv ** 2) * (1 - gamma)) / (4 * gamma * p_dist_sup * p_dist_mean)
+                # if the target_old is selected update the measures consistently
+                if p_bound_old > p_bound:
+                    p_er_adv = er_adv_old
+                    p_dist_sup = dist_sup_old
+                    p_dist_mean = dist_mean_old
+                    target = target_old
+            alfa = 0
+            if p_dist_sup != 0:
+                alfa_star = ((1 - gamma) * p_er_adv) / (2 * gamma * p_dist_sup * p_dist_mean)
+                alfa = min(1, alfa_star)
+
+            # policy and model update
+            policy = self.policy_combination(alfa, target, policy)
+
+            # performance evaluation
+            Q = self.policy_q(policy, thresh)
+            J_p_m = self.performance(policy, Q)
+
+            self._utility_trace_p(J_p_m, alfa, p_er_adv, p_dist_sup,
+                                p_dist_mean, target, target_old, convergence)
+
+            # policy chooser
+            target_old = target
+            d_mu = self.discounted_s_distribution(policy)
+            p_er_adv, p_dist_sup, p_dist_mean, target = self.policy_chooser(policy, d_mu, Q)
+
+
+        # MODEL LOOP
+
+        # model chooser
+        model = initial_model
+        U = self.model_u(policy, thresh)
+        delta_mu = self.discounted_sa_distribution(policy)
+        m_er_adv, m_dist_sup, m_dist_mean, target_index = self.model_chooser(model, delta_mu, U)
+        target_index_old = target_index
+
+        # check convergence condition
+        convergence = eps / (1 - gamma)
+        while (m_er_adv > convergence) and self.iteration < iteration_horizon:
+
+            # beta star
+            beta = 0
+            if m_dist_sup != 0:
+                beta_star = ((1 - gamma) * m_er_adv) / (2 * (gamma ** 2) * m_dist_sup * m_dist_mean)
+                beta = min(1, beta_star)
+
+            # model update
+            model = self.model_combination(beta, target_index, model)
+
+            # performance evaluation
+            Q = self.policy_q(policy, thresh)
+            J_p_m = self.performance(policy, Q)
+
+            self._utility_trace_m(J_p_m, beta, m_er_adv, m_dist_sup, m_dist_mean,
+                                target_index, target_index_old, convergence, model)
+
+            # model chooser
+            target_index_old = target_index
+            U = self.model_u(policy, thresh)
+            delta_mu = self.discounted_sa_distribution(policy)
+            m_er_adv, m_dist_sup, m_dist_mean, target_index = self.model_chooser(model, delta_mu, U)
+
+
+        return policy, model
+
+
+    # implementation of safe policy (and) model iteration
+    # version which executes a single spi sweep and a smi sweep iteratively
+    def spmi_alternated(self, initial_policy, initial_model):
+
+        # initializations
+        gamma = self.gamma
+        eps = self.eps
+        thresh = self.threshold
+        iteration_horizon = self.iteration_horizon
+        self._reset_trace()
+        par = 1
+
+        # policy chooser
+        policy = initial_policy
+        Q = self.policy_q(policy, thresh)
+        d_mu = self.discounted_s_distribution(policy)
+        p_er_adv, p_dist_sup, p_dist_mean, target = self.policy_chooser(policy, d_mu, Q)
+        target_old = target
+
+        # model chooser
+        model = initial_model
+        U = self.model_u(policy, thresh)
+        delta_mu = self.discounted_sa_distribution(policy)
+        m_er_adv, m_dist_sup, m_dist_mean, target_index = self.model_chooser(model, delta_mu, U)
+        target_index_old = target_index
+
+        # check convergence condition
+        convergence = eps / (1 - gamma)
+        while ((p_er_adv + m_er_adv) > convergence) and self.iteration < iteration_horizon:
+
+            # alfa star with target trick
+            if not self.policy_equiv_check(target, target_old) and not self.policy_equiv_check(policy, target_old):
+                er_adv_old, dist_sup_old, dist_mean_old = self.policy_chooser_old(policy, target_old, d_mu, Q)
+                p_bound_old = ((er_adv_old ** 2) * (1 - gamma)) / (4 * gamma * dist_sup_old * dist_mean_old)
+                p_bound = ((p_er_adv ** 2) * (1 - gamma)) / (4 * gamma * p_dist_sup * p_dist_mean)
+                # if the target_old is selected update the measures consistently
+                if p_bound_old > p_bound:
+                    p_er_adv = er_adv_old
+                    p_dist_sup = dist_sup_old
+                    p_dist_mean = dist_mean_old
+                    target = target_old
+            alfa = 0
+            if p_dist_sup != 0:
+                alfa_star = ((1 - gamma) * p_er_adv) / (2 * gamma * p_dist_sup * p_dist_mean)
+                alfa = min(1, alfa_star)
+
+            # beta star
+            beta = 0
+            if m_dist_sup != 0:
+                beta_star = ((1 - gamma) * m_er_adv) / (2 * (gamma ** 2) * m_dist_sup * m_dist_mean)
+                beta = min(1, beta_star)
+
+            # check parity and select update
+            if par == 1:
+                policy = self.policy_combination(alfa, target, policy)
+                beta = 0
+                par = 0
+            else:
+                if beta != 0:
+                    model = self.model_combination(beta, target_index, model)
+                    alfa = 0
+                else:
+                    policy = self.policy_combination(alfa, target, policy)
+                par = 1
+
+            # performance evaluation
+            Q = self.policy_q(policy, thresh)
+            J_p_m = self.performance(policy, Q)
+
+            self._utility_trace(J_p_m, alfa, beta, p_er_adv, m_er_adv,
                                 p_dist_sup, p_dist_mean, m_dist_sup, m_dist_mean,
                                 target, target_old, target_index, target_index_old, convergence, model)
 
@@ -696,3 +975,88 @@ class SPMI(object):
 
         # iteration update
         self.iteration = self.iteration + 1
+
+
+    # utility method to print the algorithm trace
+    # and to collect execution data (SPI)
+    def _utility_trace_p(self, J_p_m, alfa_star, p_er_adv, p_dist_sup,
+                        p_dist_mean, target, target_old, convergence):
+
+        # data collections
+        self.iterations.append(self.iteration)
+        self.evaluations.append(J_p_m)
+        self.alfas.append(alfa_star)
+        self.p_advantages.append(p_er_adv)
+        self.p_dist_sup.append(p_dist_sup)
+        self.p_dist_mean.append(p_dist_mean)
+
+        # target policy change check
+        p_check_target = self.policy_equiv_check(target, target_old)
+
+
+        # trace print
+        print('----------------------')
+        print('performance: {0}'.format(J_p_m))
+        print('iteration: {0}'.format(self.iteration))
+        print('condition: {0}\n'.format(convergence))
+
+        print('policy advantage: {0}'.format(p_er_adv))
+        print('alfa star: {0}'.format(alfa_star))
+        print('policy dist sup: {0}'.format(p_dist_sup))
+        print('policy dist mean: {0}'.format(p_dist_mean))
+        print('policy same target: {0}\n'.format(p_check_target))
+
+        # iteration update
+        self.iteration = self.iteration + 1
+
+
+    # utility method to print the algorithm trace
+    # and to collect execution data (SMI)
+    def _utility_trace_m(self, J_p_m, beta_star, m_er_adv, m_dist_sup, m_dist_mean,
+                         target_index, target_index_old, convergence, model):
+
+        # data collections
+        self.iterations.append(self.iteration)
+        self.evaluations.append(J_p_m)
+        self.betas.append(beta_star)
+        self.m_advantages.append(m_er_adv)
+        self.m_dist_sup.append(m_dist_sup)
+        self.m_dist_mean.append(m_dist_mean)
+        self.coefficients.append(model[0])
+
+        # target model change check
+        m_check_target = (target_index == target_index_old)
+
+        # trace print
+        print('----------------------')
+        print('performance: {0}'.format(J_p_m))
+        print('iteration: {0}'.format(self.iteration))
+        print('condition: {0}\n'.format(convergence))
+
+        print('model advantage: {0}'.format(m_er_adv))
+        print('beta star: {0}'.format(beta_star))
+        print('model dist sup: {0}'.format(m_dist_sup))
+        print('model dist mean: {0}'.format(m_dist_mean))
+        print('model same target: {0}'.format(m_check_target))
+        print('current model: {0}\n'.format(model))
+
+        # iteration update
+        self.iteration = self.iteration + 1
+
+
+    # utility method to reset the algorithm trace
+    def _reset_trace(self):
+
+        self.count = 0
+        self.iteration = 0
+        self.iterations = list()
+        self.evaluations = list()
+        self.p_advantages = list()
+        self.m_advantages = list()
+        self.p_dist_sup = list()
+        self.p_dist_mean = list()
+        self.m_dist_sup = list()
+        self.m_dist_mean = list()
+        self.alfas = list()
+        self.betas = list()
+        self.coefficients = list()
