@@ -1,9 +1,9 @@
 from __future__ import print_function
-import ifqi.envs as env
-from ifqi.envs.utils import get_space_info
-from ifqi.evaluation import evaluation
-from ifqi.evaluation.utils import check_dataset, split_dataset
-from ifqi.algorithms.selection import RFS, IFS
+import spmi.envs as env
+from spmi.envs.utils import get_space_info
+from spmi.evaluation import evaluation
+from spmi.evaluation.utils import check_dataset, split_dataset
+from spmi.algorithms.selection import RFS, IFS
 from sklearn.ensemble import ExtraTreesRegressor
 import numpy as np
 

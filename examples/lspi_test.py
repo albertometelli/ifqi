@@ -2,13 +2,13 @@ from __future__ import print_function
 
 import numpy as np
 
-import ifqi.envs as env
-from ifqi.algorithms.lspi import LSPI
-from ifqi.envs.utils import get_space_info
-from ifqi.evaluation import evaluation
-from ifqi.evaluation.utils import check_dataset, split_data_for_fqi
-from ifqi.models.linear import Linear
-from ifqi.models.regressor import Regressor
+import spmi.envs as env
+from spmi.algorithms.lspi import LSPI
+from spmi.envs.utils import get_space_info
+from spmi.evaluation import evaluation
+from spmi.evaluation.utils import check_dataset, split_data_for_fqi
+from spmi.models.linear import Linear
+from spmi.models.regressor import Regressor
 
 mdp = env.CarOnHill()
 state_dim, action_dim, reward_dim = get_space_info(mdp)

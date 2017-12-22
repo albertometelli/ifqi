@@ -2,10 +2,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 
-from ifqi.utils.uniform_policy import UniformPolicy
-from ifqi.utils.random_policy import RandomPolicy
-from ifqi.envs.race_track_configurable import RaceTrackConfigurableEnv
-from ifqi.algorithms.spi_exact import SPI
+from spmi.utils.uniform_policy import UniformPolicy
+from spmi.utils.random_policy import RandomPolicy
+from spmi.envs.race_track_configurable import RaceTrackConfigurableEnv
+from spmi.algorithms.spi_exact import SPI
 
 path_name = "/Users/mirco/Desktop/Simulazioni"
 path_file = "/Simulazione_TargetTrick_Comparison2"

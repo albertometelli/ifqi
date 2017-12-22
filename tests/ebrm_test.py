@@ -1,5 +1,5 @@
 from __future__ import print_function
-from ifqi.algorithms.pbo.ebrm import EmpiricalBellmanResidualMinimization
+from spmi.algorithms.pbo.ebrm import EmpiricalBellmanResidualMinimization
 import numpy as np
 import theano
 import theano.tensor as T

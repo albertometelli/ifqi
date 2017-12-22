@@ -1,12 +1,12 @@
 import numpy as np
 
-from ifqi import envs
-from ifqi.evaluation import evaluation
-from ifqi.evaluation.utils import check_dataset, split_data_for_fqi
-from ifqi.models.regressor import Regressor
-from ifqi.models.mlp import MLP
-from ifqi.models.linear import Ridge
-from ifqi.algorithms.pbo.pbo import PBO
+from spmi import envs
+from spmi.evaluation import evaluation
+from spmi.evaluation.utils import check_dataset, split_data_for_fqi
+from spmi.models.regressor import Regressor
+from spmi.models.mlp import MLP
+from spmi.models.linear import Ridge
+from spmi.algorithms.pbo.pbo import PBO
 
 """
 Simple script to quickly run pbo. It solves the LQG environment.

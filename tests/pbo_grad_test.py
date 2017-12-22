@@ -1,5 +1,5 @@
 from __future__ import print_function
-from ifqi.algorithms.pbo.gradpbo import GradPBO
+from spmi.algorithms.pbo.gradpbo import GradPBO
 import numpy as np
 from scipy import optimize
 import theano

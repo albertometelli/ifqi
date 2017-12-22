@@ -1,7 +1,7 @@
 import numpy as np
 import time
-from ifqi.envs.race_track import RaceTrackEnv
-from ifqi.evaluation import evaluation
+from spmi.envs.race_track import RaceTrackEnv
+from spmi.evaluation import evaluation
 
 class RandomPolicy(object):
 

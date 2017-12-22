@@ -7,22 +7,22 @@ import numpy as np
 import pandas as pd
 import time
 import sys
-from ifqi import envs
-from ifqi.algorithms.fqi import FQI
-from ifqi.algorithms.selection import RFS, IFS
-from ifqi.algorithms.selection.feature_extraction.Autoencoder import Autoencoder
-from ifqi.algorithms.selection.feature_extraction.build_dataset import collect_encoded_dataset
-from ifqi.algorithms.selection.feature_extraction.Logger import Logger
-from ifqi.evaluation import evaluation
-from ifqi.evaluation.utils import check_dataset, split_data_for_fqi, split_dataset
-from ifqi.models.actionregressor import ActionRegressor
-from ifqi.models.regressor import Regressor
+from spmi import envs
+from spmi.algorithms.fqi import FQI
+from spmi.algorithms.selection import RFS, IFS
+from spmi.algorithms.selection.feature_extraction.Autoencoder import Autoencoder
+from spmi.algorithms.selection.feature_extraction.build_dataset import collect_encoded_dataset
+from spmi.algorithms.selection.feature_extraction.Logger import Logger
+from spmi.evaluation import evaluation
+from spmi.evaluation.utils import check_dataset, split_data_for_fqi, split_dataset
+from spmi.models.actionregressor import ActionRegressor
+from spmi.models.regressor import Regressor
 from sklearn.ensemble import ExtraTreesRegressor
 
 """
 This script performs Recursive Feature Selection on a SARS dataset collected on an Atari environment,
     and encoded using the feature extraction model passed as parameter (see
-    ifqi.algorithms.selection.feature_extraction).
+    spmi.algorithms.selection.feature_extraction).
 It then attempts to learn the optimal policy by performing Fitted Q-Iteration on the subset of SARS
     tuples selected by RFS.
 
@@ -30,7 +30,7 @@ The SARS dataset can be passed as a file or collected at runtime using the featu
     model, and the RFS selection can be skipped (all features will be used to run FQI).
 The feature extraction model can be any object that provides a 'flat_encode' method.
     For now it has been hardcoded to be an Autoencoder object from
-    ifqi.algorithms.selection.feature_extraction.Autoencoder, so make sure to remove the mandatory
+    spmi.algorithms.selection.feature_extraction.Autoencoder, so make sure to remove the mandatory
     flag from the code if you wish to change it.
 Note: the Autoencoder must have same architecture and weights that were used to collect the dataset,
     if the dataset was passed as a file.
@@ -78,7 +78,7 @@ parser.add_argument('--min-score', type=int, default=0, help='min score needed t
 parser.add_argument('--fqi', action='store_true', help='run FQI on the dataset')
 parser.add_argument('--iterations', type=int, default=100, help='number of FQI iterations to run')
 args = parser.parse_args()
-logger = Logger(debug=args.debug, output_folder='../ifqi/algorithms/selection/feature_extraction/output/', )
+logger = Logger(debug=args.debug, output_folder='../spmi/algorithms/selection/feature_extraction/output/', )
 # Redirect stdout
 if args.log:
     old_stdout = sys.stdout

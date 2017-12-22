@@ -1,7 +1,7 @@
 from __future__ import  print_function
 import numpy as np
 
-from ifqi.models.actionregressor import ActionRegressor
+from spmi.models.actionregressor import ActionRegressor
 
 class TestRegressor(object):
 

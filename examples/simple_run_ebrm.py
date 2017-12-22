@@ -1,10 +1,10 @@
 import numpy as np
 
-from ifqi import envs
-from ifqi.evaluation import evaluation
-from ifqi.evaluation.utils import check_dataset, split_dataset, split_data_for_fqi
-from ifqi.models.regressor import Regressor
-from ifqi.algorithms.pbo.ebrm import EmpiricalBellmanResidualMinimization
+from spmi import envs
+from spmi.evaluation import evaluation
+from spmi.evaluation.utils import check_dataset, split_dataset, split_data_for_fqi
+from spmi.models.regressor import Regressor
+from spmi.algorithms.pbo.ebrm import EmpiricalBellmanResidualMinimization
 
 from keras.models import Sequential
 from keras.layers import Dense

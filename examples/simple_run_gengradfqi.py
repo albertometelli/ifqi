@@ -2,10 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import theano
 import theano.tensor as T
-from ifqi import envs
-from ifqi.evaluation import evaluation
-from ifqi.evaluation.utils import check_dataset, split_data_for_fqi
-from ifqi.algorithms.generalizedfqi import GenGradFQI
+from spmi import envs
+from spmi.evaluation import evaluation
+from spmi.evaluation.utils import check_dataset, split_data_for_fqi
+from spmi.algorithms.generalizedfqi import GenGradFQI
 
 np.random.seed(6652)
 

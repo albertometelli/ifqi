@@ -13,7 +13,7 @@ from os import path
 import sys
 
 here = path.abspath(path.dirname(__file__))
-name = 'ifqi'
+name = 'spmi'
 
 # Get the long description from the README file
 requires_list = []

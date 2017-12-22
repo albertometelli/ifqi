@@ -1,6 +1,6 @@
-from ifqi.envs.lqg1d import LQG1D
-from ifqi.utils.policy import GaussianPolicy
-from ifqi.evaluation import evaluation
+from spmi.envs.lqg1d import LQG1D
+from spmi.utils.policy import GaussianPolicy
+from spmi.evaluation import evaluation
 import numpy as np
 
 mdp = LQG1D()

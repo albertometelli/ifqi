@@ -1,6 +1,6 @@
 from __future__ import print_function
 import numpy as np
-from ifqi.envs.lqg1d import LQG1D
+from spmi.envs.lqg1d import LQG1D
 
 env = LQG1D()
 K = env.computeOptimalK()

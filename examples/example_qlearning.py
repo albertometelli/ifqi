@@ -2,7 +2,7 @@ import gym
 import pandas as pd
 import numpy as np
 import random
-from ifqi.algorithms import QLearner, Binning
+from spmi.algorithms import QLearner, Binning
 
 
 def cart_pole_with_qlearning():

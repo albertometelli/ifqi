@@ -2,14 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.ensemble import ExtraTreesRegressor
 
-from ifqi import envs
-from ifqi.evaluation import evaluation
-from ifqi.evaluation.utils import check_dataset, split_data_for_fqi
-from ifqi.algorithms.fqi import FQI
-from ifqi.models.actionregressor import ActionRegressor
-from ifqi.models.regressor import Regressor
-from ifqi.models.mlp import MLP
-from ifqi.models.ensemble import Ensemble
+from spmi import envs
+from spmi.evaluation import evaluation
+from spmi.evaluation.utils import check_dataset, split_data_for_fqi
+from spmi.algorithms.fqi import FQI
+from spmi.models.actionregressor import ActionRegressor
+from spmi.models.regressor import Regressor
+from spmi.models.mlp import MLP
+from spmi.models.ensemble import Ensemble
 
 """
 Simple script to quickly run fqi. It solves the Acrobot environment according

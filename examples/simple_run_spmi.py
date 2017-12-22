@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 
-from ifqi.utils.uniform_policy import UniformPolicy
-from ifqi.envs.race_track_configurable import RaceTrackConfigurableEnv
-from ifqi.algorithms.spmi_exact import SPMI
+from spmi.utils.uniform_policy import UniformPolicy
+from spmi.envs.race_track_configurable import RaceTrackConfigurableEnv
+from spmi.algorithms.spmi_exact import SPMI
 
 path_name = "/Users/mirco/Desktop/Simulazioni"
 path_file = "/Simulazione_SPMI"
@@ -14,20 +14,20 @@ startTime = time.time()
 
 
 k = 0.5
-mdp = RaceTrackConfigurableEnv(track_file='track0wall', initial_configuration=k)
+mdp = RaceTrackConfigurableEnv(track_file='track_spirale', initial_configuration=k)
 
 
 print('nS: {0}'.format(mdp.nS))
 print('MDP instantiated')
 
 
-eps = 0.00015
+eps = 0.00001
 spmi = SPMI(mdp, eps)
 model = np.array([k, 1 - k])
 policy = UniformPolicy(mdp)
 
 
-policy, model = spmi.spmi_combined(policy, model)
+policy, model = spmi.safe_policy_model_iteration(policy, model)
 
 
 iterations = np.array(range(spmi.iteration))

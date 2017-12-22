@@ -5,13 +5,13 @@ import sys
 
 sys.path.insert(0, os.path.abspath('../'))
 from context import *
-import ifqi.evaluation.evaluation as evaluate
+import spmi.evaluation.evaluation as evaluate
 import numpy as np
 import matplotlib as mpl
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
-from ifqi.envs.lqg1d import LQG1D
+from spmi.envs.lqg1d import LQG1D
 
 mdp = LQG1D()
 initial_state = np.ones((1, 1)) * 10.

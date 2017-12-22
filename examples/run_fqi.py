@@ -5,14 +5,14 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ifqi import envs
-from ifqi.algorithms.fqi import FQI
-from ifqi.evaluation import evaluation
-from ifqi.evaluation.utils import split_data_for_fqi
-from ifqi.loadexperiment import get_MDP, get_model
-from ifqi.models.actionregressor import ActionRegressor
-from ifqi.models.ensemble import Ensemble
-from ifqi.models.regressor import Regressor
+from spmi import envs
+from spmi.algorithms.fqi import FQI
+from spmi.evaluation import evaluation
+from spmi.evaluation.utils import split_data_for_fqi
+from spmi.loadexperiment import get_MDP, get_model
+from spmi.models.actionregressor import ActionRegressor
+from spmi.models.ensemble import Ensemble
+from spmi.models.regressor import Regressor
 
 """
 Script to run fqi. It reads a configuration .json file and perform evaluation
