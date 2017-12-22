@@ -11,8 +11,41 @@ class Policy(object):
     def draw_action(self, state, done):
         pass
 
+    def pdf(self, state, action):
+        pass
 
-class GaussianPolicyMean(Policy):
+    def get_dimension(self):
+        pass
+
+class ParametricPolicy(Policy):
+
+    def gradient_log(self, state, action, vectorize=True):
+        pass
+
+    def get_n_parameters(self):
+        pass
+
+class DeterministicPolicyLinearMean(Policy):
+
+    def __init__(self, K):
+        self.K = np.array(K, ndmin=2)
+        self.dimension = self.K.shape[0]
+
+    def _mean(self, state):
+        state = np.array(state, ndmin=1)
+        return np.dot(self.K, state)
+
+    def draw_action(self, state, done):
+        action = self._mean(state)
+        return action
+
+    def pdf(self, state, action):
+        if self._mean(state) == action:
+            return 1.
+        return 0.
+
+
+class GaussianPolicyLinearMean(ParametricPolicy):
     '''
     '''
 
@@ -20,7 +53,8 @@ class GaussianPolicyMean(Policy):
         self.K = np.array(K, ndmin=2)
         self.covar = np.array(covar, ndmin=2)
         self.inv_covar = la.inv(self.covar)
-        self.ndim = self.K.shape[0] ** 2
+        self.dimension = self.K.shape[0]
+        self.n_parameters = self.K.shape[0] ** 2
         self.seed()
 
     def _mean(self, state):
@@ -60,18 +94,22 @@ class GaussianPolicyMean(Policy):
         else:
             return grad_K
 
-    def get_dim(self):
-        return self.ndim
+    def get_dimension(self):
+        return self.dimension
 
-class GaussianPolicyMeanVar(Policy):
+    def get_n_parameters(self):
+        return self.n_parameters
+
+
+class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
     '''
     '''
 
     def __init__(self, K, Lambda):
         self.K = np.array(K, ndmin=2)
         self.Lambda = np.array(Lambda, ndmin=2)
-        self.dim = self.K.shape[0]
-        self.ndim = self.K.shape[0] ** 2 + (self.Lambda.shape[0] ** 2 + self.Lambda.shape[0]) / 2
+        self.dimension = self.K.shape[0]
+        self.n_parameters = self.K.shape[0] ** 2 + (self.Lambda.shape[0] ** 2 + self.Lambda.shape[0]) / 2
         self.covar = np.dot(self.Lambda, self.Lambda.T)
         self.inv_covar = la.inv(self.covar)
         self.seed()
@@ -87,12 +125,6 @@ class GaussianPolicyMeanVar(Policy):
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
 
-    '''
-    def set_parameter(self, K, Lambda):
-        self.K = np.array(K, ndmin=2)
-        self.Lambda = np.array(Lambda, ndmin=2)
-        self.covar = np.dot(self.Lambda, self.Lambda.T)
-    '''
 
     def set_parameter(self, theta):
         K, Lambda = self.from_vec_to_param(theta)
@@ -121,7 +153,7 @@ class GaussianPolicyMeanVar(Policy):
         state = np.array(state, ndmin=1)[:, np.newaxis]
         diff = action - self._mean(state)
         grad_K = la.multi_dot([self.inv_covar, diff, state.T])
-        grad_Lambda = 2 * self.dim * np.dot(self.inv_covar, self.Lambda) - 2 * \
+        grad_Lambda = -2 * self.dim * np.dot(self.inv_covar, self.Lambda) + 2 * \
                 la.multi_dot([self.inv_covar, diff, diff.T, self.inv_covar, self.Lambda])
 
         if vectorize:
@@ -129,5 +161,8 @@ class GaussianPolicyMeanVar(Policy):
         else:
             return grad_K, grad_Lambda
 
-    def get_dim(self):
-        return self.ndim
+    def get_dimension(self):
+        return self.dimension
+
+    def get_n_parameters(self):
+        return self.n_parameters

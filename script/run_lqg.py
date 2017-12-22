@@ -1,6 +1,8 @@
 from ifqi.envs.lqg1d import LQG1D
-from ifqi.algorithms.policy_gradient.policy import GaussianPolicyMean
+from ifqi.algorithms.policy_gradient.policy import GaussianPolicyLinearMean, DeterministicPolicyLinearMean
 from ifqi.evaluation.evaluation import collect_episodes
+from ifqi.evaluation.trajectory_generator import OnlineTrajectoryGenerator, OfflineTrajectoryGenerator
+from ifqi.algorithms.policy_gradient.policy_gradient_learner import PolicyGradientLearner
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -10,77 +12,115 @@ K_opt = mdp.computeOptimalK()
 
 sb = 2
 st = 1
-mub = -0.3
-mut = -.1
+mub = -0.2
+mut = -0.2
 N = 1000
-H = mdp.horizon
-Hmin = 6
-level = .95
 
 #Instantiate policies
-policy = GaussianPolicyMean(mub, sb**2)
-target = GaussianPolicyMean(mut, st**2)
+optimal_policy = DeterministicPolicyLinearMean(K_opt)
+behavioral_policy = GaussianPolicyLinearMean(mub, sb**2)
+target_policy = GaussianPolicyLinearMean(mut, st**2)
+
+#Evaluate optimal policy
+J_opt = []
+for i in range(100):
+    dataset = collect_episodes(mdp, optimal_policy, n_episodes=1)
+    J_opt.append(np.dot(dataset[:,2], mdp.gamma ** np.arange(len(dataset))))
+J_opt = np.mean(J_opt)
 
 #Collect trajectories
-dataset = collect_episodes(mdp, policy, n_episodes=N)
+dataset = collect_episodes(mdp, behavioral_policy, n_episodes=N)
 
-rmax = 0
-rmin = (- mdp.max_action**2 * mdp.R - mdp.max_pos**2 * mdp.Q) *\
-       (1 - mdp.gamma**N) / (1 - mdp.gamma)
+offline_trajectory_generator = OfflineTrajectoryGenerator(dataset)
+online_trajectory_generator = OnlineTrajectoryGenerator(mdp, target_policy)
 
-s,a,r = np.array(map(lambda i: (
-    np.reshape(dataset[:,i], (N, H))),
-                 range(3)))
+online_reinforce = PolicyGradientLearner(online_trajectory_generator,
+                                  target_policy,
+                                  mdp.gamma,
+                                  mdp.horizon,
+                                  learning_rate=0.002,
+                                  estimator='reinforce',
+                                  gradient_updater='adam',
+                                  max_iter_opt=200,
+                                  max_iter_eval=100,
+                                  verbose=1)
 
-R = np.array(map(lambda i: (
-    np.dot(r[i, :], np.power(mdp.gamma, range(0, H))) - rmin) / (rmax - rmin),
-             range(N)))
+online_gpomdp = PolicyGradientLearner(online_trajectory_generator,
+                                  target_policy,
+                                  mdp.gamma,
+                                  mdp.horizon,
+                                  learning_rate=0.002,
+                                  estimator='gpomdp',
+                                  gradient_updater='adam',
+                                  max_iter_opt=200,
+                                  max_iter_eval=100,
+                                  verbose=1)
 
-#Compute Minf
-def Minf(mub, mut, sb, st, max_pos):
-    return ((sb / st) * np.exp ( 0.5 * (mut - mub)**2 * max_pos ** 2 / (sb**2 - st**2)))
+offline_reinforce = PolicyGradientLearner(online_trajectory_generator,
+                                  target_policy,
+                                  mdp.gamma,
+                                  mdp.horizon,
+                                  behavioral_policy=behavioral_policy,
+                                  importance_weighting_method='pdis',
+                                  learning_rate=0.002,
+                                  estimator='reinforce',
+                                  gradient_updater='adam',
+                                  max_iter_opt=200,
+                                  max_iter_eval=100,
+                                  verbose=1)
 
-#Compute optimal horizon
-def Hstar(Minf, gamma, N, delta):
-    return (int(round((1 / np.log(Minf)) *
-            (np.log( (gamma * Minf - 1) / (np.log(gamma * Minf))) +
-             np.log( np.log(gamma) / (gamma - 1)) +
-             0.5 * (np.log(2 * N) - np.log(np.log(1/delta)))))))
+offline_gpomdp = PolicyGradientLearner(online_trajectory_generator,
+                                  target_policy,
+                                  mdp.gamma,
+                                  mdp.horizon,
+                                  behavioral_policy=behavioral_policy,
+                                  importance_weighting_method='pdis',
+                                  learning_rate=0.002,
+                                  estimator='gpomdp',
+                                  gradient_updater='adam',
+                                  max_iter_opt=200,
+                                  max_iter_eval=100,
+                                  verbose=1)
 
-#Compute weight matrix
-def W_H(N, H, target, policy):
-    W = np.zeros((N, H))
+is_offline_reinforce = PolicyGradientLearner(online_trajectory_generator,
+                                  target_policy,
+                                  mdp.gamma,
+                                  mdp.horizon,
+                                  behavioral_policy=behavioral_policy,
+                                  importance_weighting_method='is',
+                                  learning_rate=0.002,
+                                  estimator='reinforce',
+                                  gradient_updater='adam',
+                                  max_iter_opt=200,
+                                  max_iter_eval=100,
+                                  verbose=1)
 
-    for i in range(N):
-        W[i, :] = np.array(map(lambda j:
-                               target.pdf(np.array([s[i, j]]), np.array([a[i, j]])) /
-                               policy.pdf(np.array([s[i, j]]), np.array([a[i, j]])),
-                               range(H)))
-    return (W)
+is_offline_gpomdp = PolicyGradientLearner(online_trajectory_generator,
+                                  target_policy,
+                                  mdp.gamma,
+                                  mdp.horizon,
+                                  behavioral_policy=behavioral_policy,
+                                  importance_weighting_method='is',
+                                  learning_rate=0.002,
+                                  estimator='gpomdp',
+                                  gradient_updater='adam',
+                                  max_iter_opt=200,
+                                  max_iter_eval=100,
+                                  verbose=1)
 
-#Compute estimate of J
-def J_hat_H(R, W):
-    return(R * np.prod(W, axis=1))
+initial_parameter = target_policy.from_param_to_vec(-0.2)
+_, history_online_reinforce = online_reinforce.optimize(initial_parameter, return_history=True)
+_, history_online_gpomdp = online_gpomdp.optimize(initial_parameter, return_history=True)
+_, history_offline_reinforce = offline_reinforce.optimize(initial_parameter, return_history=True)
+_, history_offline_gpomdp = offline_gpomdp.optimize(initial_parameter, return_history=True)
 
-#Compute bound
-def bound(N, H, R, mub, mut, sb, st, mdp, delta, target, policy):
-    w_h = W_H(N, H, target, policy)
-    j_hat = J_hat_H(R, w_h)
-    minf = Minf(mub, mut, sb, st, mdp.max_pos)
-    boundH = j_hat.mean() - (mdp.gamma**H)/(1-mdp.gamma) - \
-        (1 - (mdp.gamma*minf)**H)/(1 - mdp.gamma*minf) * \
-        np.sqrt(np.log(1/delta) / (2*N))
-    return (boundH)
-
-minf = Minf(mub, mut, sb, st, mdp.max_pos)
-hstar = Hstar(minf, mdp.gamma, N, level)
-
-boundh = bound(N, H, R, mub, mut, sb, st, mdp, level, target, policy)
-boundstar = bound(N, hstar, R, mub, mut, sb, st, mdp, level, target, policy)
-
-print("boundh ", boundh)
-print("boundstar ", boundstar)
-
-real_bound = [bound(N, h, R, mub, mut, sb, st, mdp, level, target, policy) for h in range(1,10)]
-plt.plot(range(1,10), real_bound)
-
+fig, ax = plt.subplots()
+#ax.plot(np.array(history_reinforce)[:, 1], 'r', label='Reinforce')
+ax.plot(np.array(history_online_reinforce)[:, 0], 'r', label='Online REINFORCE')
+ax.plot(np.array(history_online_gpomdp)[:, 0], 'b', label='Online GPOMDP')
+ax.plot(np.array(history_offline_reinforce)[:, 0], 'r--', label='Offline PDIS REINFORCE')
+ax.plot(np.array(history_offline_gpomdp)[:, 0], 'b--', label='Offline PDIS GPOMDP')
+ax.plot(np.array(history_offline_reinforce)[:, 0], 'r:', label='Offline IS REINFORCE')
+ax.plot(np.array(history_offline_gpomdp)[:, 0], 'b:', label='Offline IS GPOMDP')
+#ax.plot([0, 199], [J_opt, J_opt], 'k', label='Optimal')
+legend = ax.legend(loc='lower right')

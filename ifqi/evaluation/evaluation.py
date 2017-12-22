@@ -109,7 +109,7 @@ def _eval_and_render_vectorial(mdp, policy, horizon=None, gamma=None, metric='di
             mdp.render(mode='human')
 
         while t < H and not done:
-            action = policy.draw_action(state, done, True)
+            action = policy.draw_action(state, done)
             state, r, done, _ = mdp.step(action)
             ep_performance += df * r
             df *= gamma

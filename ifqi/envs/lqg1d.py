@@ -43,7 +43,7 @@ class LQG1D(gym.Env):
         self.discrete_reward = discrete_reward
         self.max_pos = 4.0
         self.max_action = 4.0
-        self.sigma_noise = 0.1
+        self.sigma_noise = 0.
         self.A = np.array([1]).reshape((1, 1))
         self.B = np.array([1]).reshape((1, 1))
         self.Q = np.array([0.9]).reshape((1, 1))
@@ -57,7 +57,6 @@ class LQG1D(gym.Env):
                                        shape=(1,))
         self.observation_space = spaces.Box(low=-high, high=high)
 
-        self.initial_states = np.array([[1, 2, 5, 7, 10]]).T
 
         # initialize state
         self.seed()

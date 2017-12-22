@@ -26,6 +26,25 @@ class VanillaGradient(GradientDescent):
 
         return self.x
 
+class AnnellingGradient(GradientDescent):
+
+    def __init__(self, learning_rate, ascent=False):
+        self.initial_leaning_rate = learning_rate
+        self.learning_rate = self.initial_leaning_rate
+        self.ascent = ascent
+        self.ite = 0
+
+    def update(self, dx):
+        if self.ascent:
+            self.x += self.learning_rate * dx
+        else:
+            self.x -= self.learning_rate * dx
+        self.ite += 1
+        self.learning_rate = self.initial_leaning_rate / np.sqrt(self.ite)
+        print(self.learning_rate)
+
+        return self.x
+
 class Adam(GradientDescent):
 
     '''
