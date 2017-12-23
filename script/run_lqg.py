@@ -6,7 +6,6 @@ from ifqi.algorithms.policy_gradient.policy_gradient_learner import PolicyGradie
 import numpy as np
 import matplotlib.pyplot as plt
 
-
 mdp = LQG1D()
 K_opt = mdp.computeOptimalK()
 
@@ -113,6 +112,8 @@ _, history_online_reinforce = online_reinforce.optimize(initial_parameter, retur
 _, history_online_gpomdp = online_gpomdp.optimize(initial_parameter, return_history=True)
 _, history_offline_reinforce = offline_reinforce.optimize(initial_parameter, return_history=True)
 _, history_offline_gpomdp = offline_gpomdp.optimize(initial_parameter, return_history=True)
+_, history_is_offline_reinforce = is_offline_reinforce.optimize(initial_parameter, return_history=True)
+_, history_is_offline_gpomdp = is_offline_gpomdp.optimize(initial_parameter, return_history=True)
 
 fig, ax = plt.subplots()
 #ax.plot(np.array(history_reinforce)[:, 1], 'r', label='Reinforce')
@@ -120,7 +121,7 @@ ax.plot(np.array(history_online_reinforce)[:, 0], 'r', label='Online REINFORCE')
 ax.plot(np.array(history_online_gpomdp)[:, 0], 'b', label='Online GPOMDP')
 ax.plot(np.array(history_offline_reinforce)[:, 0], 'r--', label='Offline PDIS REINFORCE')
 ax.plot(np.array(history_offline_gpomdp)[:, 0], 'b--', label='Offline PDIS GPOMDP')
-ax.plot(np.array(history_offline_reinforce)[:, 0], 'r:', label='Offline IS REINFORCE')
-ax.plot(np.array(history_offline_gpomdp)[:, 0], 'b:', label='Offline IS GPOMDP')
+ax.plot(np.array(history_is_offline_reinforce)[:, 0], 'r:', label='Offline IS REINFORCE')
+ax.plot(np.array(history_is_offline_gpomdp)[:, 0], 'b:', label='Offline IS GPOMDP')
 #ax.plot([0, 199], [J_opt, J_opt], 'k', label='Optimal')
 legend = ax.legend(loc='lower right')
