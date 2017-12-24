@@ -377,7 +377,7 @@ class SPI(object):
         a = 0
         s = 0
         for sa in range(nS * nA):
-            if a == 5:
+            if a == nA:
                 a = 0
                 s = s + 1
             pi[s][sa] = policy_rep[s][a]

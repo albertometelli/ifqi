@@ -1,7 +1,7 @@
 import numpy as np
 import itertools
 from spmi.envs import discrete
-
+from spmi.utils.matrix_builders import *
 
 class TeacherStudentEnv(discrete.DiscreteEnv):
     def __init__(self, n_literals=2, max_value=1, max_update=1, max_literals_in_examples=3, horizon=10):
@@ -36,17 +36,24 @@ class TeacherStudentEnv(discrete.DiscreteEnv):
         self.horizon = horizon
 
         self.isd = np.ones(self.nS) / self.nS
+        self.mu = self.isd
+
         action_encoded = self._get_all_actions()
         self.nA = len(action_encoded)
         self.encoded_to_index_dict = dict(zip(action_encoded, range(self.nA)))
         self.index_to_encoded_dict = dict(zip(range(self.nA), action_encoded))
 
         self.P = {s: {a: [] for a in range(self.nA)} for s in range(self.nS)}
-
-
         self._build_P()
+
+        self.P_sas = p_sas(self.P, self.nS, self.nA)
+        self.P_sa = p_sa(self.P_sas, self.nS, self.nA)
+
+
         super(TeacherStudentEnv, self).__init__(self.nS, self.nA, self.P, self.isd)
 
+    def get_valid_actions(self, s):
+        return range(self.nA)
 
     def _encode_state(self, state):
         index = 0
