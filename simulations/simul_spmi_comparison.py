@@ -14,7 +14,7 @@ startTime = time.time()
 
 
 k = 0.5
-mdp = RaceTrackConfigurableEnv(track_file='track3', initial_configuration=k)
+mdp = RaceTrackConfigurableEnv(track_file='track0wall', initial_configuration=k)
 
 
 print('nS: {0}'.format(mdp.nS))
@@ -87,24 +87,15 @@ n = spmi.iteration
 
 seq_iterations = np.array(range(n))
 seq_evaluations = np.array(spmi.evaluations)
-seq_p_advantages = np.zeros(n)
-seq_p_advantages[0:a] = spmi.p_advantages
-seq_m_advantages = np.zeros(n)
-seq_m_advantages[a:n] = spmi.m_advantages
-seq_p_dist_sup = np.zeros(n)
-seq_p_dist_sup[0:a] = spmi.p_dist_sup
-seq_p_dist_mean = np.zeros(n)
-seq_p_dist_mean[0:a] = spmi.p_dist_mean
-seq_m_dist_sup = np.ones(n) * 0.8
-seq_m_dist_sup[a:n] = spmi.m_dist_sup
-seq_m_dist_mean = np.ones(n) * 0.3
-seq_m_dist_mean[a:n] = spmi.m_dist_mean
-seq_alfas = np.zeros(n)
-seq_alfas[0:a] = spmi.alfas
-seq_betas = np.zeros(n)
-seq_betas[a:n] = spmi.betas
-seq_coefficient = np.ones(n) * 0.5
-seq_coefficient[a:n] = spmi.coefficients
+seq_p_advantages = spmi.p_advantages
+seq_m_advantages = spmi.m_advantages
+seq_p_dist_sup = spmi.p_dist_sup
+seq_p_dist_mean = spmi.p_dist_mean
+seq_m_dist_sup = spmi.m_dist_sup
+seq_m_dist_mean = spmi.m_dist_mean
+seq_alfas = spmi.alfas
+seq_betas = spmi.betas
+seq_coefficient = spmi.coefficients
 
 
 
