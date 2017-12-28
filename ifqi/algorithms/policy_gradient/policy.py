@@ -80,6 +80,9 @@ class GaussianPolicyLinearMean(ParametricPolicy):
         K = np.array(K, ndmin=2)
         return K.ravel()
 
+    def get_parameter(self):
+        return self.from_param_to_vec(self.K)
+
     def pdf(self, state, action):
         return multivariate_normal.pdf(action, self._mean(state), self.covar)
 
@@ -144,6 +147,9 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
         K = np.array(K, ndmin=2)
         Lambda = np.array(Lambda, ndmin=2)
         return np.concatenate([K.ravel(), Lambda[np.tril_indices(Lambda.shape[0])].ravel()])
+
+    def get_parameter(self):
+        return self.from_param_to_vec(self.K,self.Lambda)
 
     def pdf(self, state, action):
         return multivariate_normal.pdf(action, self._mean(state), self.covar)
