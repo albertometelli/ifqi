@@ -6,26 +6,25 @@ from spmi.utils.uniform_policy import UniformPolicy
 from spmi.envs.race_track_configurable import RaceTrackConfigurableEnv
 from spmi.algorithms.spmi_exact import SPMI
 
-path_name = "/Users/mirco/Desktop/Simulazioni"
-path_file = "/Simulazione_SPMI"
+path_name =""
+path_file = "simulations/data"
 
 
 startTime = time.time()
 
 
 k = 0.5
-mdp = RaceTrackConfigurableEnv(track_file='track3', initial_configuration=k)
+mdp = RaceTrackConfigurableEnv(track_file='track0', initial_configuration=k)
 
 
 print('nS: {0}'.format(mdp.nS))
 print('MDP instantiated')
 
 
-eps = 0.00015
-spmi = SPMI(mdp, eps)
+eps = 0.0002
+spmi = SPMI(mdp, eps, max_iter=10, delta_q=1.)
 initial_model = np.array([k, 1 - k])
 initial_policy = UniformPolicy(mdp)
-
 
 
 spmi.safe_policy_model_iteration(initial_policy, initial_model)
@@ -45,7 +44,23 @@ coefficient = np.array(spmi.coefficients)
 mdp.model_configuration(k)
 
 
-spmi.spmi_no_full_step(initial_policy, initial_model)
+spmi.safe_policy_model_iteration_sup(initial_policy, initial_model)
+
+sup_iterations = np.array(range(spmi.iteration))
+sup_evaluations = np.array(spmi.evaluations)
+sup_p_advantages = np.array(spmi.p_advantages)
+sup_m_advantages = np.array(spmi.m_advantages)
+sup_p_dist_sup = np.array(spmi.p_dist_sup)
+sup_p_dist_mean = np.array(spmi.p_dist_mean)
+sup_m_dist_sup = np.array(spmi.m_dist_sup)
+sup_m_dist_mean = np.array(spmi.m_dist_mean)
+sup_alfas = np.array(spmi.alfas)
+sup_betas = np.array(spmi.betas)
+sup_coefficient = np.array(spmi.coefficients)
+
+mdp.model_configuration(k)
+
+spmi.safe_policy_model_iteration_no_full_step(initial_policy, initial_model)
 
 int_iterations = np.array(range(spmi.iteration))
 int_evaluations = np.array(spmi.evaluations)
@@ -62,7 +77,7 @@ int_coefficient = np.array(spmi.coefficients)
 mdp.model_configuration(k)
 
 
-spmi.spmi_alternated(initial_policy, initial_model)
+spmi.safe_policy_model_alternated(initial_policy, initial_model)
 
 alt_iterations = np.array(range(spmi.iteration))
 alt_evaluations = np.array(spmi.evaluations)
@@ -79,7 +94,7 @@ alt_coefficient = np.array(spmi.coefficients)
 mdp.model_configuration(k)
 
 
-spmi.spmi_sequential(initial_policy, initial_model)
+spmi.safe_policy_model_iteration_sequential(initial_policy, initial_model)
 
 n_spi = len(spmi.alfas)
 a = n_spi
@@ -165,14 +180,14 @@ plt.savefig(path_name + path_file + "/advantages")
 plt.figure()
 plt.title('Alfa & Beta')
 plt.xlabel('Iteration')
-plt.plot(iterations, alfas, color='b', linestyle='', marker='o', label='SPMI alfa')
-plt.plot(iterations, betas, color='b', linestyle='', marker='s', label='SPMI beta')
-plt.plot(alt_iterations, alt_alfas, color='g', linestyle='', marker='o', label='alternated alfa')
-plt.plot(alt_iterations, alt_betas, color='g', linestyle='', marker='s', label='alternated beta')
+plt.plot(iterations, alfas, color='b',  label='SPMI alfa')
+plt.plot(iterations, betas, color='b', linestyle='--', label='SPMI beta')
+plt.plot(alt_iterations, alt_alfas, color='g',   label='alternated alfa')
+plt.plot(alt_iterations, alt_betas, color='g', label='alternated beta')
 plt.plot(seq_iterations, seq_alfas, color='r', linestyle='', marker='o', label='sequential alfa')
 plt.plot(seq_iterations, seq_betas, color='r', linestyle='', marker='s', label='sequential beta')
-plt.plot(int_iterations, int_alfas, color='k', linestyle='', marker='o', label='intertwined alfa')
-plt.plot(int_iterations, int_betas, color='k', linestyle='', marker='s', label='intertwined beta')
+plt.plot(int_iterations, int_alfas, color='k',  label='intertwined alfa')
+plt.plot(int_iterations, int_betas, color='k',  linestyle='--', label='intertwined beta')
 plt.legend(loc='best', fancybox=True)
 plt.yscale('log')
 plt.savefig(path_name + path_file + "/alfabeta")

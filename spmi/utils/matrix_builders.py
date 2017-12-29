@@ -23,6 +23,36 @@ def p_sas(P, nS, nA):
 
     return P_sas
 
+def r_sas(P, nS, nA):
+
+    # instantiation of an SxAxS matrix to collect the probabilities
+    R_sas = np.zeros(shape=(nS, nA, nS))
+
+    # loop to fill the probability values
+    for s in range(nS):
+        for a in range(nA):
+            list = P[s][a]
+            for elem in list:
+                R_sas[s][a][elem[1]] = elem[2]
+
+    return R_sas
+
+def r_sa(R_sas, nS, nA):
+
+    # instantiation of an SxAxS matrix to collect the probabilities
+    R_sa = np.zeros(shape=(nS * nA, nS))
+
+    a = 0
+    s = 0
+    for sa in range(nS * nA):
+        if a == nA:
+            a = 0
+            s = s + 1
+        R_sa[sa] = R_sas[s][a]
+        a = a + 1
+
+    return R_sa
+
 # method to populate the P_sa
 def p_sa(P_sas, nS, nA):
 

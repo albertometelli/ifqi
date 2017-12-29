@@ -1,5 +1,6 @@
 import numpy as np
 import itertools
+import copy
 from spmi.envs import discrete
 from spmi.utils.matrix_builders import *
 
@@ -48,9 +49,18 @@ class TeacherStudentEnv(discrete.DiscreteEnv):
 
         self.P_sas = p_sas(self.P, self.nS, self.nA)
         self.P_sa = p_sa(self.P_sas, self.nS, self.nA)
+        self.R_sas = r_sas(self.P, self.nS, self.nA)
+        self.R = r_sa(self.R_sas, self.nS, self.nA)
 
 
         super(TeacherStudentEnv, self).__init__(self.nS, self.nA, self.P, self.isd)
+
+    def set_model(self, model):
+        self.P = copy.deepcopy(model)
+        self.P_sas = p_sas(self.P, self.nS, self.nA)
+        self.P_sa = p_sa(self.P_sas, self.nS, self.nA)
+        self.R_sas = r_sas(self.P, self.nS, self.nA)
+        self.R = r_sa(self.R_sas, self.nS, self.nA)
 
     def get_valid_actions(self, s):
         return range(self.nA)
@@ -120,17 +130,23 @@ class TeacherStudentEnv(discrete.DiscreteEnv):
         for s in range(self.nS):
             for a in range(self.nA):
                 l = self.P[s][a]
+                sum_prob = 0.
                 for s1 in range(self.nS):
-                    if self._allowed_state(s, s1):
-                        if self._consistent(a, s1):
-                            reward = 1
-                        else:
-                            reward = 0
 
-                        l.append((1., s1, reward, False))
+                    if self._consistent(a, s1):
+                        reward = 1.
+                    else:
+                        reward = 0.
+
+                    if self._allowed_state(s, s1):
+                        prob = 1.
+                    else:
+                        prob = 0.
+                    sum_prob += prob
+                    l.append((prob, s1, reward, False))
 
                 for i in range(len(l)):
-                    l[i] = (l[i][0] / len(l),) + l[i][1:]
+                    l[i] = (l[i][0] / sum_prob, l[i][1], l[i][2], l[i][3])
 
     # method to reset the MDP state to an initial one
     def reset(self):

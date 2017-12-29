@@ -6,7 +6,7 @@ from spmi.utils.spi_policy import SpiPolicy
 
 class SPI(object):
 
-    def __init__(self, mdp, eps, delta):
+    def __init__(self, mdp, eps, delta, max_iter=3000, delta_q=None):
         """
         Safe Policy Iterator:
         object that enable the call for exact spi algorithm
@@ -21,6 +21,12 @@ class SPI(object):
         self.eps = eps
         self.delta = delta
         self.uniform_policy = UniformPolicy(mdp)
+        self.max_iter = max_iter
+
+        if delta_q is None:
+            self.delta_q = (1. - self.gamma ** self.horizon) / (1 - self.gamma)
+        else:
+            self.delta_q = delta_q
 
         # attributes related to
         # trace print procedures
@@ -45,7 +51,7 @@ class SPI(object):
         prev_target_policy = initial_policy
         d_mu_thresh = 0.0001
         Q_thresh = 0.0001
-        iteration_horizon = 3000
+        iteration_horizon = self.max_iter
 
         # update policy until convergence
         d_mu_pi = self.discounted_state_distribution(policy, d_mu_thresh)
@@ -54,7 +60,7 @@ class SPI(object):
         convergence_condition = eps / (1 - gamma)
         while er_advantage > convergence_condition and self.iteration < iteration_horizon:
             alfa_num = (1 - gamma) * er_advantage
-            alfa_den = 2 * gamma * distance_sup * distance_mean
+            alfa_den = self.delta_q * gamma * distance_sup * distance_mean
             alfa_star = alfa_num / alfa_den
             alfa = min(1, alfa_star)
             policy = self.pol_combination(alfa, target_policy, policy)
@@ -81,7 +87,7 @@ class SPI(object):
         policy = initial_policy
         d_mu_thresh = 0.0001
         Q_thresh = 0.0001
-        iteration_horizon = 3000
+        iteration_horizon = self.max_iter
 
         # update policy until convergence
         d_mu_pi = self.discounted_state_distribution(policy, d_mu_thresh)
@@ -94,15 +100,15 @@ class SPI(object):
             # for both target and target_old and select the best one
             if not self.pol_equivalence_check(target, target_old):
                 er_adv_old, dist_sup_old, dist_mean_old = self.pol_chooser_old(policy, target_old, d_mu_pi, Q)
-                bound_old = ((er_adv_old ** 2) * (1 - gamma)) / (4 * gamma * dist_sup_old * dist_mean_old)
-                bound = ((er_adv ** 2) * (1 - gamma)) / (4 * gamma * dist_sup * dist_mean)
+                bound_old = ((er_adv_old ** 2) * (1 - gamma)) / (2 * self.delta_q * gamma * dist_sup_old * dist_mean_old)
+                bound = ((er_adv ** 2) * (1 - gamma)) / (2 * self.delta_q * gamma * dist_sup * dist_mean)
                 # if the target_old is selected update the measures consistently
                 if bound_old > bound:
                     er_adv = er_adv_old
                     dist_sup = dist_sup_old
                     dist_mean = dist_mean_old
                     target = target_old
-            alfa_star = ((1 - gamma) * er_adv) / (2 * gamma * dist_sup * dist_mean)
+            alfa_star = ((1 - gamma) * er_adv) / (self.delta_q * gamma * dist_sup * dist_mean)
             alfa = min(1, alfa_star)
             policy = self.pol_combination(alfa, target, policy)
             d_mu_pi = self.discounted_state_distribution(policy, d_mu_thresh)
@@ -128,7 +134,7 @@ class SPI(object):
         policy = initial_policy
         d_mu_thresh = 0.0001
         Q_thresh = 0.0001
-        iteration_horizon = 3000
+        iteration_horizon = self.max_iter
 
         # update policy until convergence
         d_mu_pi = self.discounted_state_distribution(policy, d_mu_thresh)
@@ -141,15 +147,15 @@ class SPI(object):
             # for both target and target_old and select the best one
             if not self.pol_equivalence_check(target, target_old):
                 er_adv_old, dist_sup_old, dist_mean_old = self.pol_chooser_old(policy, target_old, d_mu_pi, Q)
-                bound_old = ((er_adv_old ** 2) * (1 - gamma)) / (4 * gamma * dist_sup_old * dist_sup_old)
-                bound = ((er_adv ** 2) * (1 - gamma)) / (4 * gamma * dist_sup * dist_sup)
+                bound_old = ((er_adv_old ** 2) * (1 - gamma)) / (2 * self.delta_q * gamma * dist_sup_old * dist_sup_old)
+                bound = ((er_adv ** 2) * (1 - gamma)) / (2 * self.delta_q * gamma * dist_sup * dist_sup)
                 # if the target_old is selected update the measures consistently
                 if bound_old > bound:
                     er_adv = er_adv_old
                     dist_sup = dist_sup_old
                     dist_mean = dist_mean_old
                     target = target_old
-            alfa_star = ((1 - gamma) * er_adv) / (2 * gamma * dist_sup * dist_sup)
+            alfa_star = ((1 - gamma) * er_adv) / (self.delta_q * gamma * dist_sup * dist_sup)
             alfa = min(1, alfa_star)
             policy = self.pol_combination(alfa, target, policy)
             d_mu_pi = self.discounted_state_distribution(policy, d_mu_thresh)
