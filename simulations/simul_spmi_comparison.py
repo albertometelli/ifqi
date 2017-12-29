@@ -179,5 +179,4 @@ plt.legend(loc='best', fancybox=True)
 plt.savefig(path_name + path_file + "/coefficient")
 
 
-
 print('The script took {0} minutes'.format((time.time() - startTime) / 60))

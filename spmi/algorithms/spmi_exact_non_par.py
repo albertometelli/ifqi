@@ -19,13 +19,18 @@ class SPMI(object):
                  max_iter=10000,
                  delta_q=None,
                  use_target_trick=True):
-        """
-        Safe Policy Model Iterator:
-        object that enable the call for exact spmi algorithms
+        '''
+        This class implements Safe Policy Model Iteration
 
-        :param mdp: mdp to solve
-        :param eps: accuracy of the spi
-        """
+        :param mdp: the Markov decision process object
+        :param eps: threshold to be use to stop iterations
+        :param policy_chooser: an object implementing the choice of the target policy
+        :param model_chooser: an object implementing the choice of the target model
+        :param max_iter: maximum number of iterations to be performed
+        :param delta_q: the value of DeltaQ, if None 1/(1-gamma) is used
+        :param use_target_trick: whether to keep the current target if better
+        '''
+
         self.mdp = mdp
         self.gamma = mdp.gamma
         self.horizon = mdp.horizon
@@ -105,7 +110,6 @@ class SPMI(object):
             target_policies = [(target_policy, p_er_adv, p_dist_sup, p_dist_mean)]
             if self.use_target_trick:
                 if not self.policy_equiv_check(target_policy, target_policy_old) and not self.policy_equiv_check(policy, target_policy_old):
-                    #er_adv_old, dist_sup_old, dist_mean_old = self.policy_chooser_old(policy, target_policy_old, d_mu, Q)
                     er_adv_old = evaluator.compute_policy_er_advantage(target_policy_old, policy, Q, d_mu)
                     dist_sup_old = policy_sup_tv_distance(target_policy_old, policy)
                     dist_mean_old = policy_mean_tv_distance(target_policy_old, policy, d_mu)
@@ -114,7 +118,6 @@ class SPMI(object):
             target_models = [(target_model, m_er_adv, m_dist_sup, m_dist_mean)]
             if self.use_target_trick:
                 if not self.model_equiv_check(target_model, target_model_old) and not self.model_equiv_check(model, target_model_old):
-                    #er_adv_old, dist_sup_old, dist_mean_old = self.model_chooser_old(model, target_model_old, d_mu, Q)
                     er_adv_old = evaluator.compute_model_er_advantage(target_model_old, model, U, delta_mu)
                     dist_sup_old = policy_sup_tv_distance(target_model_old, model)
                     dist_mean_old = policy_mean_tv_distance(target_model_old, model, delta_mu)
@@ -194,8 +197,6 @@ class SPMI(object):
                 policy, model, gamma, horizon, nS, nA, d_mu)
             m_er_adv, m_dist_sup, m_dist_mean, target_model = self.model_chooser.choose(model, delta_mu, U)
 
-
-
         return policy, model
 
     # implementation of safe policy (and) model iteration
@@ -204,98 +205,124 @@ class SPMI(object):
 
         # initializations
         gamma = self.gamma
+        reward = TabularReward(self.mdp.P, self.mdp.nS, self.mdp.nA)
+        mu = self.mdp.mu
+        nS, nA = self.mdp.nS, self.mdp.nA
+        horizon = self.horizon
         eps = self.eps
-        thresh = self.threshold
         iteration_horizon = self.iteration_horizon
         self._reset_trace()
 
+        policy = initial_policy
+        model = initial_model
 
         # policy chooser
-        policy = initial_policy
-        Q = self.policy_q(policy, thresh)
-        d_mu = self.discounted_s_distribution(policy)
-        p_er_adv, p_dist_sup, p_dist_mean, target = self.policy_chooser(policy, d_mu, Q)
-        target_old = target
+        Q = evaluator.compute_q_function(policy, model, reward, gamma, horizon=horizon)
+        d_mu = evaluator.compute_discounted_s_distribution(mu, \
+                    policy, model, gamma, horizon, nS, nA)
+        p_er_adv, p_dist_sup, p_dist_mean, target_policy = self.policy_chooser.choose(policy, d_mu, Q)
+        target_policy_old = target_policy
 
         # model chooser
-        model = initial_model
-        U = self.model_u(policy, thresh, Q)
-        delta_mu = self.discounted_sa_distribution(policy, d_mu)
-        m_er_adv, m_dist_sup, m_dist_mean, target_index = self.model_chooser(model, delta_mu, U)
-        target_index_old = target_index
-
+        U = evaluator.compute_u_function(policy, model, reward, gamma, horizon=horizon)
+        delta_mu = evaluator.compute_discounted_sa_distribution(mu, \
+                policy, model, gamma, horizon, nS, nA, d_mu)
+        m_er_adv, m_dist_sup, m_dist_mean, target_model = self.model_chooser.choose(model, delta_mu, U)
+        target_model_old = target_model
 
         # check convergence condition
         convergence = eps / (1 - gamma)
         while ((p_er_adv + m_er_adv) > convergence) and self.iteration < iteration_horizon:
 
-            target_to_test = [(target, p_er_adv, p_dist_sup, p_dist_mean)]
+            target_policies = [(target_policy, p_er_adv, p_dist_sup, p_dist_mean)]
             if self.use_target_trick:
-                if not self.policy_equiv_check(target, target_old) and not self.policy_equiv_check(policy, target_old):
-                    er_adv_old, dist_sup_old, dist_mean_old = self.policy_chooser_old(policy, target_old, d_mu, Q)
-                    target_to_test.append((target_old, er_adv_old, dist_sup_old, dist_mean_old))
+                if not self.policy_equiv_check(target_policy, target_policy_old) and not self.policy_equiv_check(policy, target_policy_old):
+                    er_adv_old = evaluator.compute_policy_er_advantage(target_policy_old, policy, Q, d_mu)
+                    dist_sup_old = policy_sup_tv_distance(target_policy_old, policy)
+                    dist_mean_old = policy_mean_tv_distance(target_policy_old, policy, d_mu)
+                    target_policies.append((target_policy_old, er_adv_old, dist_sup_old, dist_mean_old))
+
+            target_models = [(target_model, m_er_adv, m_dist_sup, m_dist_mean)]
+            if self.use_target_trick:
+                if not self.model_equiv_check(target_model, target_model_old) and not self.model_equiv_check(model, target_model_old):
+                    er_adv_old = evaluator.compute_model_er_advantage(target_model_old, model, U, delta_mu)
+                    dist_sup_old = policy_sup_tv_distance(target_model_old, model)
+                    dist_mean_old = policy_mean_tv_distance(target_model_old, model, delta_mu)
+                    target_models.append((target_model_old, er_adv_old, dist_sup_old, dist_mean_old))
 
             bound_star = 0.
             alpha_star = 0.
             beta_star = 0.
-            target_star = target
+            target_policy_star = target_policy
+            target_model_star = target_model
+            p_er_adv_star, p_dist_sup_star, p_dist_mean_star = None, None, None
+            m_er_adv_star, m_dist_sup_star, m_dist_mean_star = None, None, None
 
-            for target, p_er_adv, p_dist_sup, p_dist_mean in target_to_test:
 
-                alpha0 = ((1 - gamma) * p_er_adv) / (self.delta_q * gamma * \
-                            p_dist_sup ** 2 + 1e-24)
-                alpha1 = ((1 - gamma) * p_er_adv) / (self.delta_q * gamma * \
-                            p_dist_sup ** 2 + 1e-24) - \
-                            m_dist_sup / (p_dist_sup + 1e-24)
-                beta0 = ((1 - gamma) * m_er_adv) / (self.delta_q * (gamma ** 2) \
-                            * m_dist_sup ** 2)
-                beta1 = ((1 - gamma) * m_er_adv) / (self.delta_q * (gamma ** 2) \
-                            * m_dist_sup ** 2) - 1. / gamma * \
-                            p_dist_sup / (m_dist_sup + 1e-24)
+            for target_policy, p_er_adv, p_dist_sup, p_dist_mean in target_policies:
+                for target_model, m_er_adv, m_dist_sup, m_dist_mean in target_models:
 
-                alpha0 = np.clip(alpha0, 0., 1.)
-                alpha1 = np.clip(alpha1, 0., 1.)
-                beta0 = np.clip(beta0, 0., 1.)
-                beta1 = np.clip(beta1, 0., 1.)
+                    alpha0 = ((1 - gamma) * p_er_adv) / (self.delta_q * gamma * \
+                                p_dist_sup * p_dist_sup + 1e-24)
+                    alpha1 = ((1 - gamma) * p_er_adv) / (self.delta_q * gamma * \
+                                p_dist_sup * p_dist_sup + 1e-24) - \
+                                m_dist_sup / (p_dist_sup + 1e-24)
+                    beta0 = ((1 - gamma) * m_er_adv) / (self.delta_q * (gamma ** 2) \
+                                * m_dist_sup * m_dist_sup)
+                    beta1 = ((1 - gamma) * m_er_adv) / (self.delta_q * (gamma ** 2) \
+                                * m_dist_sup * m_dist_sup) - 1. / gamma * \
+                                p_dist_sup / (m_dist_sup + 1e-24)
 
-                for alpha, beta in [(alpha0, 0.), (0., beta0), (alpha1, 1.), (1., beta1)]:
+                    alpha0 = np.clip(alpha0, 0., 1.)
+                    alpha1 = np.clip(alpha1, 0., 1.)
+                    beta0 = np.clip(beta0, 0., 1.)
+                    beta1 = np.clip(beta1, 0., 1.)
 
-                    bound = alpha * p_er_adv + beta * m_er_adv - \
-                            (gamma / (1 - gamma) * self.delta_q / 2) * \
-                            ((alpha ** 2) * p_dist_sup ** 2 + \
-                             gamma * (beta ** 2) * m_dist_sup ** 2 + \
-                             2 * alpha * beta * p_dist_sup * m_dist_sup)
+                    for alpha, beta in [(alpha0, 0.), (0., beta0), (alpha1, 1.), (1., beta1)]:
 
-                    if bound > bound_star:
-                        bound_star = bound
-                        alpha_star = alpha
-                        beta_star = beta
-                        target_star = target
+                        bound = alpha * p_er_adv + beta * m_er_adv - \
+                                (gamma / (1 - gamma) * self.delta_q / 2) * \
+                                ((alpha ** 2) * p_dist_sup ** 2 + \
+                                 gamma * (beta ** 2) * m_dist_sup ** 2 + \
+                                 2 * alpha * beta * p_dist_sup * m_dist_sup)
+
+                        if bound > bound_star:
+                            bound_star = bound
+                            alpha_star = alpha
+                            beta_star = beta
+                            target_policy_star = target_policy
+                            target_model_star = target_model
+                            p_er_adv_star, p_dist_sup_star, p_dist_mean_star = p_er_adv, p_dist_sup, p_dist_mean
+                            m_er_adv_star, m_dist_sup_star, m_dist_mean_star = m_er_adv, m_dist_sup, m_dist_mean
 
             # policy and model update
             if alpha_star > 0:
-                policy = self.policy_combination(alpha_star, target_star, policy)
+                policy = self.policy_combination(alpha_star, target_policy_star, policy)
             if beta_star > 0:
-                model = self.model_combination(beta_star, target_index, model)
+                model = self.model_combination(beta_star, target_model_star, model)
 
             # performance evaluation
-            Q = self.policy_q(policy, thresh)
-            J_p_m = self.performance(policy, Q)
+            Q = evaluator.compute_q_function(policy, model, reward, gamma, horizon=horizon)
+            J_p_m = evaluator.compute_performance(mu, reward, \
+                    policy, model, gamma, horizon, nS, nA)
 
-            self._utility_trace(J_p_m, alpha_star, beta_star, p_er_adv, m_er_adv,
-                                p_dist_sup, p_dist_mean, m_dist_sup, m_dist_mean,
-                                target_star, target_old, target_index, target_index_old, convergence, model)
+            self._utility_trace(J_p_m, alpha_star, beta_star, p_er_adv_star, m_er_adv_star,
+                                p_dist_sup_star, p_dist_mean_star, m_dist_sup_star, m_dist_mean_star,
+                                target_policy_star, target_policy_old, target_model_star, target_model_old,
+                                 convergence)
 
             # policy chooser
-            target_old = target_star
-            d_mu = self.discounted_s_distribution(policy)
-            p_er_adv, p_dist_sup, p_dist_mean, target = self.policy_chooser(policy, d_mu, Q)
+            target_policy_old = target_policy_star
+            d_mu = evaluator.compute_discounted_s_distribution(mu, \
+                policy, model, gamma, horizon, nS, nA)
+            p_er_adv, p_dist_sup, p_dist_mean, target_policy = self.policy_chooser.choose(policy, d_mu, Q)
 
             # model chooser
-            target_index_old = target_index
-            U = self.model_u(policy, thresh, Q)
-            delta_mu = self.discounted_sa_distribution(policy, d_mu)
-            m_er_adv, m_dist_sup, m_dist_mean, target_index = self.model_chooser(model, delta_mu, U)
+            target_model_old = target_model_star
+            U = evaluator.compute_u_function(policy, model, reward, gamma, horizon=horizon)
+            delta_mu = evaluator.compute_discounted_sa_distribution(mu, \
+                policy, model, gamma, horizon, nS, nA, d_mu)
+            m_er_adv, m_dist_sup, m_dist_mean, target_model = self.model_chooser.choose(model, delta_mu, U)
 
         return policy, model
 
@@ -305,90 +332,117 @@ class SPMI(object):
 
         # initializations
         gamma = self.gamma
+        reward = TabularReward(self.mdp.P, self.mdp.nS, self.mdp.nA)
+        mu = self.mdp.mu
+        nS, nA = self.mdp.nS, self.mdp.nA
+        horizon = self.horizon
         eps = self.eps
-        thresh = self.threshold
         iteration_horizon = self.iteration_horizon
         self._reset_trace()
 
+        policy = initial_policy
+        model = initial_model
 
         # policy chooser
-        policy = initial_policy
-        Q = self.policy_q(policy, thresh)
-        d_mu = self.discounted_s_distribution(policy)
-        p_er_adv, p_dist_sup, p_dist_mean, target = self.policy_chooser(policy, d_mu, Q)
-        target_old = target
+        Q = evaluator.compute_q_function(policy, model, reward, gamma, horizon=horizon)
+        d_mu = evaluator.compute_discounted_s_distribution(mu, \
+                    policy, model, gamma, horizon, nS, nA)
+        p_er_adv, p_dist_sup, p_dist_mean, target_policy = self.policy_chooser.choose(policy, d_mu, Q)
+        target_policy_old = target_policy
 
         # model chooser
-        model = initial_model
-        U = self.model_u(policy, thresh, Q)
-        delta_mu = self.discounted_sa_distribution(policy, d_mu)
-        m_er_adv, m_dist_sup, m_dist_mean, target_index = self.model_chooser(model, delta_mu, U)
-        target_index_old = target_index
-
+        U = evaluator.compute_u_function(policy, model, reward, gamma, horizon=horizon)
+        delta_mu = evaluator.compute_discounted_sa_distribution(mu, \
+                 policy, model, gamma, horizon, nS, nA, d_mu)
+        m_er_adv, m_dist_sup, m_dist_mean, target_model = self.model_chooser.choose(
+            model, delta_mu, U)
+        target_model_old = target_model
 
         # check convergence condition
         convergence = eps / (1 - gamma)
         while ((p_er_adv + m_er_adv) > convergence) and self.iteration < iteration_horizon:
 
-            target_to_test = [(target, p_er_adv, p_dist_sup, p_dist_mean)]
+            target_policies = [(target_policy, p_er_adv, p_dist_sup, p_dist_mean)]
             if self.use_target_trick:
-                if not self.policy_equiv_check(target, target_old) and not self.policy_equiv_check(policy, target_old):
-                    er_adv_old, dist_sup_old, dist_mean_old = self.policy_chooser_old(policy, target_old, d_mu, Q)
-                    target_to_test.append((target_old, er_adv_old, dist_sup_old, dist_mean_old))
+                if not self.policy_equiv_check(target_policy, target_policy_old) and not self.policy_equiv_check(policy, target_policy_old):
+                    er_adv_old = evaluator.compute_policy_er_advantage(target_policy_old, policy, Q, d_mu)
+                    dist_sup_old = policy_sup_tv_distance(target_policy_old, policy)
+                    dist_mean_old = policy_mean_tv_distance(target_policy_old, policy, d_mu)
+                    target_policies.append((target_policy_old, er_adv_old, dist_sup_old, dist_mean_old))
+
+            target_models = [(target_model, m_er_adv, m_dist_sup, m_dist_mean)]
+            if self.use_target_trick:
+                if not self.model_equiv_check(target_model, target_model_old) and not self.model_equiv_check(model, target_model_old):
+                    er_adv_old = evaluator.compute_model_er_advantage(target_model_old, model, U, delta_mu)
+                    dist_sup_old = policy_sup_tv_distance(target_model_old, model)
+                    dist_mean_old = policy_mean_tv_distance(target_model_old, model, delta_mu)
+                    target_models.append((target_model_old, er_adv_old, dist_sup_old, dist_mean_old))
 
             bound_star = 0.
             alpha_star = 0.
             beta_star = 0.
-            target_star = target
+            target_policy_star = target_policy
+            target_model_star = target_model
+            p_er_adv_star, p_dist_sup_star, p_dist_mean_star = None, None, None
+            m_er_adv_star, m_dist_sup_star, m_dist_mean_star = None, None, None
 
-            for target, p_er_adv, p_dist_sup, p_dist_mean in target_to_test:
 
-                alpha0 = ((1 - gamma) * p_er_adv) / (self.delta_q * gamma * \
-                            p_dist_sup * p_dist_mean)
-                beta0 = ((1 - gamma) * m_er_adv) / (self.delta_q * (gamma ** 2) \
-                            * m_dist_sup * m_dist_mean)
+            for target_policy, p_er_adv, p_dist_sup, p_dist_mean in target_policies:
+                for target_model, m_er_adv, m_dist_sup, m_dist_mean in target_models:
 
-                alpha0 = np.clip(alpha0, 0., 1.)
-                beta0 = np.clip(beta0, 0., 1.)
+                    alpha0 = ((1 - gamma) * p_er_adv) / (self.delta_q * gamma * \
+                                p_dist_sup * p_dist_mean + 1e-24)
+                    beta0 = ((1 - gamma) * m_er_adv) / (self.delta_q * (gamma ** 2) \
+                                * m_dist_sup * m_dist_mean)
 
-                for alpha, beta in [(alpha0, 0.), (0., beta0)]:
+                    alpha0 = np.clip(alpha0, 0., 1.)
+                    beta0 = np.clip(beta0, 0., 1.)
 
-                    bound = alpha * p_er_adv + beta * m_er_adv - \
-                            (gamma / (1 - gamma) * self.delta_q / 2) * \
-                            ((alpha ** 2) * p_dist_sup * p_dist_mean + \
-                             gamma * (beta ** 2) * m_dist_sup * m_dist_mean + \
-                             alpha * beta * p_dist_sup * m_dist_mean + alpha * beta * p_dist_mean * m_dist_sup)
+                    for alpha, beta in [(alpha0, 0.), (0., beta0)]:
 
-                    if bound > bound_star:
-                        bound_star = bound
-                        alpha_star = alpha
-                        beta_star = beta
-                        target_star = target
+                        bound = alpha * p_er_adv + beta * m_er_adv - \
+                                (gamma / (1 - gamma) * self.delta_q / 2) * \
+                                ((alpha ** 2) * p_dist_sup * p_dist_mean + \
+                                 gamma * (beta ** 2) * m_dist_sup * m_dist_mean + \
+                                 alpha * beta * p_dist_sup * m_dist_mean + alpha * beta * p_dist_mean * m_dist_sup)
+
+                        if bound > bound_star:
+                            bound_star = bound
+                            alpha_star = alpha
+                            beta_star = beta
+                            target_policy_star = target_policy
+                            target_model_star = target_model
+                            p_er_adv_star, p_dist_sup_star, p_dist_mean_star = p_er_adv, p_dist_sup, p_dist_mean
+                            m_er_adv_star, m_dist_sup_star, m_dist_mean_star = m_er_adv, m_dist_sup, m_dist_mean
 
             # policy and model update
             if alpha_star > 0:
-                policy = self.policy_combination(alpha_star, target_star, policy)
+                policy = self.policy_combination(alpha_star, target_policy_star, policy)
             if beta_star > 0:
-                model = self.model_combination(beta_star, target_index, model)
+                model = self.model_combination(beta_star, target_model_star, model)
 
             # performance evaluation
-            Q = self.policy_q(policy, thresh)
-            J_p_m = self.performance(policy, Q)
+            Q = evaluator.compute_q_function(policy, model, reward, gamma, horizon=horizon)
+            J_p_m = evaluator.compute_performance(mu, reward, \
+                    policy, model, gamma, horizon, nS, nA)
 
-            self._utility_trace(J_p_m, alpha_star, beta_star, p_er_adv, m_er_adv,
-                                p_dist_sup, p_dist_mean, m_dist_sup, m_dist_mean,
-                                target_star, target_old, target_index, target_index_old, convergence, model)
+            self._utility_trace(J_p_m, alpha_star, beta_star, p_er_adv_star, m_er_adv_star,
+                                p_dist_sup_star, p_dist_mean_star, m_dist_sup_star, m_dist_mean_star,
+                                target_policy_star, target_policy_old, target_model_star, target_model_old,
+                                 convergence)
 
             # policy chooser
-            target_old = target_star
-            d_mu = self.discounted_s_distribution(policy)
-            p_er_adv, p_dist_sup, p_dist_mean, target = self.policy_chooser(policy, d_mu, Q)
+            target_policy_old = target_policy_star
+            d_mu = evaluator.compute_discounted_s_distribution(mu, \
+                policy, model, gamma, horizon, nS, nA)
+            p_er_adv, p_dist_sup, p_dist_mean, target_policy = self.policy_chooser.choose(policy, d_mu, Q)
 
             # model chooser
-            target_index_old = target_index
-            U = self.model_u(policy, thresh, Q)
-            delta_mu = self.discounted_sa_distribution(policy, d_mu)
-            m_er_adv, m_dist_sup, m_dist_mean, target_index = self.model_chooser(model, delta_mu, U)
+            target_model_old = target_model_star
+            U = evaluator.compute_u_function(policy, model, reward, gamma, horizon=horizon)
+            delta_mu = evaluator.compute_discounted_sa_distribution(mu, \
+                policy, model, gamma, horizon, nS, nA, d_mu)
+            m_er_adv, m_dist_sup, m_dist_mean, target_model = self.model_chooser.choose(model, delta_mu, U)
 
         return policy, model
 
@@ -398,200 +452,262 @@ class SPMI(object):
 
         # initializations
         gamma = self.gamma
+        reward = TabularReward(self.mdp.P, self.mdp.nS, self.mdp.nA)
+        mu = self.mdp.mu
+        nS, nA = self.mdp.nS, self.mdp.nA
+        horizon = self.horizon
         eps = self.eps
-        thresh = self.threshold
         iteration_horizon = self.iteration_horizon
         self._reset_trace()
 
+        policy = initial_policy
+        model = initial_model
 
         # policy chooser
-        policy = initial_policy
-        Q = self.policy_q(policy, thresh)
-        d_mu = self.discounted_s_distribution(policy)
-        p_er_adv, p_dist_sup, p_dist_mean, target = self.policy_chooser(policy, d_mu, Q)
-        target_old = target
-
+        Q = evaluator.compute_q_function(policy, model, reward, gamma, horizon=horizon)
+        d_mu = evaluator.compute_discounted_s_distribution(mu, \
+                    policy, model, gamma, horizon, nS, nA)
+        p_er_adv, p_dist_sup, p_dist_mean, target_policy = self.policy_chooser.choose(policy, d_mu, Q)
+        target_policy_old = target_policy
 
         # check convergence condition
         convergence = eps / (1 - gamma)
         while p_er_adv > convergence and self.iteration < iteration_horizon:
 
-            target_to_test = [(target, p_er_adv, p_dist_sup, p_dist_mean)]
+            target_policies = [(target_policy, p_er_adv, p_dist_sup, p_dist_mean)]
             if self.use_target_trick:
-                if not self.policy_equiv_check(target, target_old) and not self.policy_equiv_check(policy, target_old):
-                    er_adv_old, dist_sup_old, dist_mean_old = self.policy_chooser_old(policy, target_old, d_mu, Q)
-                    target_to_test.append((target_old, er_adv_old, dist_sup_old, dist_mean_old))
+                if not self.policy_equiv_check(target_policy, target_policy_old) and not self.policy_equiv_check(policy, target_policy_old):
+                    er_adv_old = evaluator.compute_policy_er_advantage(target_policy_old, policy, Q, d_mu)
+                    dist_sup_old = policy_sup_tv_distance(target_policy_old, policy)
+                    dist_mean_old = policy_mean_tv_distance(target_policy_old, policy, d_mu)
+                    target_policies.append((target_policy_old, er_adv_old, dist_sup_old, dist_mean_old))
 
-            alpha_star = 0.
             bound_star = 0.
-            target_star = target
+            alpha_star = 0.
 
-            for target, p_er_adv, p_dist_sup, p_dist_mean in target_to_test:
+            target_policy_star = target_policy
+            p_er_adv_star, p_dist_sup_star, p_dist_mean_star = None, None, None
+
+
+            for target_policy, p_er_adv, p_dist_sup, p_dist_mean in target_policies:
 
                 alpha = ((1 - gamma) * p_er_adv) / (self.delta_q * gamma * \
-                            p_dist_sup * p_dist_mean)
+                            p_dist_sup * p_dist_mean + 1e-24)
 
                 alpha = np.clip(alpha, 0., 1.)
 
-                bound = alpha * p_er_adv -\
+                bound = alpha * p_er_adv - \
                         (gamma / (1 - gamma) * self.delta_q / 2) * \
                         ((alpha ** 2) * p_dist_sup * p_dist_mean)
 
                 if bound > bound_star:
                     bound_star = bound
                     alpha_star = alpha
-                    target_star = target
+                    target_policy_star = target_policy
+                    p_er_adv_star, p_dist_sup_star, p_dist_mean_star = p_er_adv, p_dist_sup, p_dist_mean
 
-            # policy and model update
+            # policy update
             if alpha_star > 0:
-                policy = self.policy_combination(alpha_star, target_star, policy)
+                policy = self.policy_combination(alpha_star, target_policy_star, policy)
 
             # performance evaluation
-            Q = self.policy_q(policy, thresh)
-            J_p_m = self.performance(policy, Q)
+            Q = evaluator.compute_q_function(policy, model, reward, gamma, horizon=horizon)
+            J_p_m = evaluator.compute_performance(mu, reward, \
+                    policy, model, gamma, horizon, nS, nA)
 
-            self._utility_trace_p(J_p_m, alpha, p_er_adv, p_dist_sup,
-                                  p_dist_mean, target, target_old, convergence)
+            self._utility_trace_p(J_p_m, alpha_star, p_er_adv, p_dist_sup,
+                        p_dist_mean, target_policy, target_policy_old, convergence)
 
             # policy chooser
-            target_old = target_star
-            d_mu = self.discounted_s_distribution(policy)
-            p_er_adv, p_dist_sup, p_dist_mean, target = self.policy_chooser(policy, d_mu, Q)
+            target_policy_old = target_policy_star
+            d_mu = evaluator.compute_discounted_s_distribution(mu, \
+                policy, model, gamma, horizon, nS, nA)
+            p_er_adv, p_dist_sup, p_dist_mean, target_policy = self.policy_chooser.choose(policy, d_mu, Q)
 
 
         # model chooser
-        model = initial_model
-        U = self.model_u(policy, thresh, Q)
-        delta_mu = self.discounted_sa_distribution(policy, d_mu)
-        m_er_adv, m_dist_sup, m_dist_mean, target_index = self.model_chooser(model, delta_mu, U)
-        target_index_old = target_index
-
+        U = evaluator.compute_u_function(policy, model, reward, gamma, horizon=horizon)
+        delta_mu = evaluator.compute_discounted_sa_distribution(mu, \
+                      policy, model, gamma, horizon, nS, nA)
+        m_er_adv, m_dist_sup, m_dist_mean, target_model = self.model_chooser.choose(model, delta_mu, U)
+        target_model_old = target_model
+        # check convergence condition
+        convergence = eps / (1 - gamma)
         while m_er_adv > convergence and self.iteration < iteration_horizon:
 
-            beta = ((1 - gamma) * m_er_adv) / (self.delta_q * (gamma ** 2) \
-                        * m_dist_sup * m_dist_mean)
+            target_models = [(target_model, m_er_adv, m_dist_sup, m_dist_mean)]
+            if self.use_target_trick:
+                if not self.model_equiv_check(target_model, target_model_old) and not self.model_equiv_check(model, target_model_old):
+                    er_adv_old = evaluator.compute_model_er_advantage(target_model_old, model, U, delta_mu)
+                    dist_sup_old = policy_sup_tv_distance(target_model_old, model)
+                    dist_mean_old = policy_mean_tv_distance(target_model_old, model, delta_mu)
+                    target_models.append((target_model_old, er_adv_old, dist_sup_old, dist_mean_old))
 
-            beta = np.clip(beta, 0., 1.)
+            bound_star = 0.
+            beta_star = 0.
+            target_model_star = target_model
+            m_er_adv_star, m_dist_sup_star, m_dist_mean_star = None, None, None
 
-            bound =  beta * m_er_adv - \
-                    (gamma / (1 - gamma) * self.delta_q / 2) * \
-                    (gamma * (beta ** 2) * m_dist_sup * m_dist_mean)
 
-            beta_star = beta
-            bound_star = bound
+            for target_model, m_er_adv, m_dist_sup, m_dist_mean in target_models:
 
+                beta = ((1 - gamma) * m_er_adv) / (self.delta_q * (gamma ** 2) \
+                            * m_dist_sup * m_dist_mean)
+
+                beta = np.clip(beta, 0., 1.)
+
+                bound = beta * m_er_adv - \
+                        (gamma / (1 - gamma) * self.delta_q / 2) * \
+                         gamma * (beta ** 2) * m_dist_sup * m_dist_mean
+
+                if bound > bound_star:
+                    bound_star = bound
+                    beta_star = beta
+                    target_model_star = target_model
+                    m_er_adv_star, m_dist_sup_star, m_dist_mean_star = m_er_adv, m_dist_sup, m_dist_mean
+
+            # model update
             if beta_star > 0:
-                model = self.model_combination(beta_star, target_index, model)
+                model = self.model_combination(beta_star, target_model_star, model)
 
             # performance evaluation
-            Q = self.policy_q(policy, thresh)
-            J_p_m = self.performance(policy, Q)
+            J_p_m = evaluator.compute_performance(mu, reward, \
+                    policy, model, gamma, horizon, nS, nA)
 
-            self._utility_trace_m(J_p_m, beta, m_er_adv, m_dist_sup,
-                                  m_dist_mean,
-                                  target_index, target_index_old, convergence,
-                                  model)
+            self._utility_trace_m(J_p_m, beta_star, m_er_adv_star, m_dist_sup_star, m_dist_mean_star,
+                                 target_model_star, target_model_old, convergence)
 
             # model chooser
-            target_index_old = target_index
-            U = self.model_u(policy, thresh)
-            delta_mu = self.discounted_sa_distribution(policy)
-            m_er_adv, m_dist_sup, m_dist_mean, target_index = self.model_chooser(model, delta_mu, U)
+            target_model_old = target_model_star
+            U = evaluator.compute_u_function(policy, model, reward, gamma, horizon=horizon)
+            delta_mu = evaluator.compute_discounted_sa_distribution(mu, \
+                policy, model, gamma, horizon, nS, nA)
+            m_er_adv, m_dist_sup, m_dist_mean, target_model = self.model_chooser.choose(model, delta_mu, U)
 
         return policy, model
 
     # implementation of safe policy (and) model iteration
     # version which executes a single spi sweep and a smi sweep iteratively
-    def safe_policy_model_alternated(self, initial_policy, initial_model):
+    def safe_policy_model_iteration_alternated(self, initial_policy, initial_model):
 
         # initializations
         gamma = self.gamma
+        reward = TabularReward(self.mdp.P, self.mdp.nS, self.mdp.nA)
+        mu = self.mdp.mu
+        nS, nA = self.mdp.nS, self.mdp.nA
+        horizon = self.horizon
         eps = self.eps
-        thresh = self.threshold
         iteration_horizon = self.iteration_horizon
         self._reset_trace()
 
+        policy = initial_policy
+        model = initial_model
 
         # policy chooser
-        policy = initial_policy
-        Q = self.policy_q(policy, thresh)
-        d_mu = self.discounted_s_distribution(policy)
-        p_er_adv, p_dist_sup, p_dist_mean, target = self.policy_chooser(policy, d_mu, Q)
-        target_old = target
+        Q = evaluator.compute_q_function(policy, model, reward, gamma, horizon=horizon)
+        d_mu = evaluator.compute_discounted_s_distribution(mu, \
+                    policy, model, gamma, horizon, nS, nA)
+        p_er_adv, p_dist_sup, p_dist_mean, target_policy = self.policy_chooser.choose(policy, d_mu, Q)
+        target_policy_old = target_policy
 
         # model chooser
-        model = initial_model
-        U = self.model_u(policy, thresh, Q)
-        delta_mu = self.discounted_sa_distribution(policy, d_mu)
-        m_er_adv, m_dist_sup, m_dist_mean, target_index = self.model_chooser(model, delta_mu, U)
-        target_index_old = target_index
-
+        U = evaluator.compute_u_function(policy, model, reward, gamma, horizon=horizon)
+        delta_mu = evaluator.compute_discounted_sa_distribution(mu, \
+                policy, model, gamma, horizon, nS, nA, d_mu)
+        m_er_adv, m_dist_sup, m_dist_mean, target_model = self.model_chooser.choose(
+            model, delta_mu, U)
+        target_model_old = target_model
 
         # check convergence condition
         convergence = eps / (1 - gamma)
         while ((p_er_adv + m_er_adv) > convergence) and self.iteration < iteration_horizon:
 
-            target_to_test = [(target, p_er_adv, p_dist_sup, p_dist_mean)]
+            target_policies = [(target_policy, p_er_adv, p_dist_sup, p_dist_mean)]
             if self.use_target_trick:
-                if not self.policy_equiv_check(target, target_old) and not self.policy_equiv_check(policy, target_old):
-                    er_adv_old, dist_sup_old, dist_mean_old = self.policy_chooser_old(policy, target_old, d_mu, Q)
-                    target_to_test.append((target_old, er_adv_old, dist_sup_old, dist_mean_old))
+                if not self.policy_equiv_check(target_policy, target_policy_old) and not self.policy_equiv_check(policy, target_policy_old):
+                    er_adv_old = evaluator.compute_policy_er_advantage(target_policy_old, policy, Q, d_mu)
+                    dist_sup_old = policy_sup_tv_distance(target_policy_old, policy)
+                    dist_mean_old = policy_mean_tv_distance(target_policy_old, policy, d_mu)
+                    target_policies.append((target_policy_old, er_adv_old, dist_sup_old, dist_mean_old))
 
-            bound_star = 0.
+            target_models = [(target_model, m_er_adv, m_dist_sup, m_dist_mean)]
+            if self.use_target_trick:
+                if not self.model_equiv_check(target_model, target_model_old) and not self.model_equiv_check(model, target_model_old):
+                    er_adv_old = evaluator.compute_model_er_advantage(target_model_old, model, U, delta_mu)
+                    dist_sup_old = policy_sup_tv_distance(target_model_old, model)
+                    dist_mean_old = policy_mean_tv_distance(target_model_old, model, delta_mu)
+                    target_models.append((target_model_old, er_adv_old, dist_sup_old, dist_mean_old))
+
+            bound_star = -1.
             alpha_star = 0.
             beta_star = 0.
-            target_star = target
+            target_policy_star = target_policy
+            target_model_star = target_model
+            p_er_adv_star, p_dist_sup_star, p_dist_mean_star = None, None, None
+            m_er_adv_star, m_dist_sup_star, m_dist_mean_star = None, None, None
 
-            for target, p_er_adv, p_dist_sup, p_dist_mean in target_to_test:
 
-                alpha0 = ((1 - gamma) * p_er_adv) / (self.delta_q * gamma * \
-                            p_dist_sup * p_dist_mean)
-                beta0 = ((1 - gamma) * m_er_adv) / (self.delta_q * (gamma ** 2) \
-                            * m_dist_sup * m_dist_mean)
+            for target_policy, p_er_adv, p_dist_sup, p_dist_mean in target_policies:
+                for target_model, m_er_adv, m_dist_sup, m_dist_mean in target_models:
 
-                alpha0 = np.clip(alpha0, 0., 1.)
-                beta0 = np.clip(beta0, 0., 1.)
+                    alpha0 = ((1 - gamma) * p_er_adv) / (self.delta_q * gamma * \
+                                p_dist_sup * p_dist_mean + 1e-24)
+                    beta0 = ((1 - gamma) * m_er_adv) / (self.delta_q * (gamma ** 2) \
+                                * m_dist_sup * m_dist_mean + 1e-24)
 
-                alt = [(alpha0, 0.), (0., beta0)]
+                    alpha0 = np.clip(alpha0, 0., 1.)
+                    beta0 = np.clip(beta0, 0., 1.)
 
-                alpha, beta = alt[self.iteration % 2]
+                    if self.iteration % 2 == 0:
+                        li = [(alpha0, 0.)]
+                    else:
+                        li = [(0., beta0)]
 
-                bound = alpha * p_er_adv + beta * m_er_adv - \
-                        (gamma / (1 - gamma) * self.delta_q / 2) * \
-                        ((alpha ** 2) * p_dist_sup * p_dist_mean + \
-                         gamma * (beta ** 2) * m_dist_sup * m_dist_mean + \
-                         alpha * beta * p_dist_sup * m_dist_mean + alpha * beta * p_dist_mean * m_dist_sup)
+                    for alpha, beta in li:
 
-                if bound > bound_star:
-                    bound_star = bound
-                    alpha_star = alpha
-                    beta_star = beta
-                    target_star = target
+                        bound = alpha * p_er_adv + beta * m_er_adv - \
+                                (gamma / (1 - gamma) * self.delta_q / 2) * \
+                                ((alpha ** 2) * p_dist_sup * p_dist_mean + \
+                                 gamma * (beta ** 2) * m_dist_sup * m_dist_mean + \
+                                 alpha * beta * p_dist_sup * m_dist_mean + alpha * beta * p_dist_mean * m_dist_sup)
+
+                        if bound > bound_star:
+                            bound_star = bound
+                            alpha_star = alpha
+                            beta_star = beta
+                            target_policy_star = target_policy
+                            target_model_star = target_model
+                            p_er_adv_star, p_dist_sup_star, p_dist_mean_star = p_er_adv, p_dist_sup, p_dist_mean
+                            m_er_adv_star, m_dist_sup_star, m_dist_mean_star = m_er_adv, m_dist_sup, m_dist_mean
 
             # policy and model update
             if alpha_star > 0:
-                policy = self.policy_combination(alpha_star, target_star, policy)
+                policy = self.policy_combination(alpha_star, target_policy_star, policy)
             if beta_star > 0:
-                model = self.model_combination(beta_star, target_index, model)
+                model = self.model_combination(beta_star, target_model_star, model)
 
             # performance evaluation
-            Q = self.policy_q(policy, thresh)
-            J_p_m = self.performance(policy, Q)
+            Q = evaluator.compute_q_function(policy, model, reward, gamma, horizon=horizon)
+            J_p_m = evaluator.compute_performance(mu, reward, \
+                    policy, model, gamma, horizon, nS, nA)
 
-            self._utility_trace(J_p_m, alpha_star, beta_star, p_er_adv, m_er_adv,
-                                p_dist_sup, p_dist_mean, m_dist_sup, m_dist_mean,
-                                target_star, target_old, target_index, target_index_old, convergence, model)
+            self._utility_trace(J_p_m, alpha_star, beta_star, p_er_adv_star, m_er_adv_star,
+                                p_dist_sup_star, p_dist_mean_star, m_dist_sup_star, m_dist_mean_star,
+                                target_policy_star, target_policy_old, target_model_star, target_model_old,
+                                 convergence)
 
             # policy chooser
-            target_old = target_star
-            d_mu = self.discounted_s_distribution(policy)
-            p_er_adv, p_dist_sup, p_dist_mean, target = self.policy_chooser(policy, d_mu, Q)
+            target_policy_old = target_policy_star
+            d_mu = evaluator.compute_discounted_s_distribution(mu, \
+                policy, model, gamma, horizon, nS, nA)
+            p_er_adv, p_dist_sup, p_dist_mean, target_policy = self.policy_chooser.choose(policy, d_mu, Q)
 
             # model chooser
-            target_index_old = target_index
-            U = self.model_u(policy, thresh, Q)
-            delta_mu = self.discounted_sa_distribution(policy, d_mu)
-            m_er_adv, m_dist_sup, m_dist_mean, target_index = self.model_chooser(model, delta_mu, U)
+            target_model_old = target_model_star
+            U = evaluator.compute_u_function(policy, model, reward, gamma, horizon=horizon)
+            delta_mu = evaluator.compute_discounted_sa_distribution(mu, \
+                policy, model, gamma, horizon, nS, nA, d_mu)
+            m_er_adv, m_dist_sup, m_dist_mean, target_model = self.model_chooser.choose(model, delta_mu, U)
 
         return policy, model
 
@@ -679,6 +795,19 @@ class SPMI(object):
         self.evaluations.append(J_p_m)
         self.alfas.append(alfa_star)
         self.p_advantages.append(p_er_adv)
+        self.p_dist_sup.append(p_dist_sup)
+        self.p_dist_mean.append(p_dist_mean)
+
+        self.betas.append(0.)
+        self.m_advantages.append(np.nan)
+        self.m_dist_sup.append(np.nan)
+        self.m_dist_mean.append(np.nan)
+
+
+        # target change check
+        p_check_target = self.policy_equiv_check(target_policy, target_policy_old)
+        self.p_change.append(p_check_target)
+        self.m_change.append(True)
 
 
         # trace print
@@ -691,7 +820,6 @@ class SPMI(object):
         print('alfa star: {0}'.format(alfa_star))
         print('policy dist sup: {0}'.format(p_dist_sup))
         print('policy dist mean: {0}'.format(p_dist_mean))
-        print('policy same target: {0}\n'.format(p_check_target))
 
         # iteration update
         self.iteration = self.iteration + 1
@@ -700,7 +828,7 @@ class SPMI(object):
     # utility method to print the algorithm trace
     # and to collect execution data (SMI)
     def _utility_trace_m(self, J_p_m, beta_star, m_er_adv, m_dist_sup, m_dist_mean,
-                         target_index, target_index_old, convergence, model):
+                         target_model, target_model_old, convergence):
 
         # data collections
         self.iterations.append(self.iteration)
@@ -709,10 +837,16 @@ class SPMI(object):
         self.m_advantages.append(m_er_adv)
         self.m_dist_sup.append(m_dist_sup)
         self.m_dist_mean.append(m_dist_mean)
-        self.coefficients.append(model[0])
 
-        # target model change check
-        m_check_target = (target_index == target_index_old)
+        self.alfas.append(0.)
+        self.p_advantages.append(np.nan)
+        self.p_dist_sup.append(np.nan)
+        self.p_dist_mean.append(np.nan)
+
+        # target change check
+        m_check_target = self.model_equiv_check(target_model, target_model_old)
+        self.m_change.append(m_check_target)
+        self.p_change.append(True)
 
         # trace print
         print('----------------------')
@@ -724,8 +858,6 @@ class SPMI(object):
         print('beta star: {0}'.format(beta_star))
         print('model dist sup: {0}'.format(m_dist_sup))
         print('model dist mean: {0}'.format(m_dist_mean))
-        print('model same target: {0}'.format(m_check_target))
-        print('current model: {0}\n'.format(model))
 
         # iteration update
         self.iteration = self.iteration + 1
@@ -747,3 +879,5 @@ class SPMI(object):
         self.alfas = list()
         self.betas = list()
         self.coefficients = list()
+        self.p_change = list()
+        self.m_change = list()

@@ -10,7 +10,6 @@ else:
 
 import gym
 import numpy as np
-from spmi.algorithms.selection.feature_extraction.helpers import crop_state
 from spmi.evaluation.utils import filter_state_with_RFS
 
 from ..envs.utils import get_space_info

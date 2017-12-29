@@ -13,7 +13,7 @@ mdp = TeacherStudentEnv(n_literals=2,
                         max_value=1,
                         max_update=1,
                         max_literals_in_examples=2,
-                        horizon=50)
+                        horizon=10)
 
 uniform_policy = UniformPolicy(mdp)
 
