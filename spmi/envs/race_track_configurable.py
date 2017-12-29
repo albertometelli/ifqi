@@ -55,8 +55,8 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.P_sa = np.zeros(shape=(nS * nA, nS))
 
         self.max_psucc = max_psucc = 0.9
-        self.max_psucc2 = max_psucc2 = 0.6
-        self.min_psucc = min_psucc = 0.4
+        self.max_psucc2 = max_psucc2 = 0.9
+        self.min_psucc = min_psucc = 0.1
         self.min_psucc2 = min_psucc2 = 0.1
         self.max_speed = max_speed = 2 * (max(vel) ** 2)
 
