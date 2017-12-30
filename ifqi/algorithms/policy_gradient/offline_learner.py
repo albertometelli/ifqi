@@ -3,16 +3,26 @@ import math
 from  ifqi.algorithms.policy_gradient.policy_gradient_learner import *
 PolicyGradientLearner
 from ifqi.evaluation.trajectory_generator import OfflineTrajectoryGenerator
+import scipy
+from scipy import optimize
 
 #Prototypes
 def computeOptimalHorizon(M_infty,gamma,N,delta):
-    return 8
+    return (int(round((1 / np.log(M_infty)) *
+                      (np.log((gamma * M_infty - 1) / (np.log(gamma * M_infty))) +
+                       np.log(np.log(gamma) / (gamma - 1)) +
+                       0.5 * (np.log(2 * N) - np.log(np.log(1 / delta)))))))
 
-def computeMInfty(behavioral_policy,target_policy):
-    return 50
+def computeMInfty(behavioral_policy, target_policy):
+    return ((behavioral_policy.covar / target_policy.covar) *
+            np.exp(0.5 * (target_policy.get_parameter() - behavioral_policy.get_parameter())**2 * 8 ** 2 /
+                     (behavioral_policy.covar ** 2 - target_policy.covar ** 2)))
 
 def maxMInfty(H_min,gamma,N,delta):
-    return 100
+    f = lambda minf: (gamma**H_min)/(1-gamma) - \
+        (1 - (gamma*minf)**H_min)/(1 - gamma*minf) * \
+        np.sqrt(np.log(1/delta) / (2*N))
+    return scipy.optimize.fsolve(f, 1)
 
 
 class OfflineLearner(object):
