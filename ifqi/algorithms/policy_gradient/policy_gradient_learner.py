@@ -265,13 +265,13 @@ class GradientEstimator(object):
         gradient_estimate = np.inf
 
         #vector of the trajectory returns
-        traj_returns = np.ndarray((0, self.horizon))
+        traj_returns = np.ndarray((0, int(self.horizon)))
 
         # matrix of the tragectory log policy gradient
-        traj_log_gradients = np.ndarray((0, self.horizon, self.dim))
+        traj_log_gradients = np.ndarray((0, int(self.horizon), self.dim))
 
         #vector of the importance weights
-        ws =  np.ndarray((0, self.horizon))
+        ws =  np.ndarray((0, int(self.horizon)))
 
         #vectors of the lenghts of trajectories
         horizons = []
@@ -281,18 +281,18 @@ class GradientEstimator(object):
 
             # Collect a trajectory
             self.trajectory_generator.set_policy(self.target_policy)
-            traj = self.trajectory_generator.next()[:self.horizon]
+            traj = self.trajectory_generator.next()[:int(self.horizon)]
 
             #Compute lenght
             horizons.append(traj.shape[0])
 
             #Compute the is weights
             w = self.is_estimator.weight(traj)
-            w = np.concatenate([w, np.zeros(self.horizon - horizons[-1])])
+            w = np.concatenate([w, np.zeros(int(self.horizon) - horizons[-1])])
             ws = np.vstack([ws, [w]])
 
             # Compute the trajectory return
-            traj_return = np.zeros(self.horizon)
+            traj_return = np.zeros(int(self.horizon))
             traj_return[:horizons[-1]] = traj[:, self.reward_index] * self.gamma ** np.arange(horizons[-1])
             traj_returns = np.vstack([traj_returns, [traj_return]])
 
