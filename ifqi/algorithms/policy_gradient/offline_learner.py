@@ -6,12 +6,14 @@ from ifqi.evaluation.trajectory_generator import OfflineTrajectoryGenerator
 import scipy
 from scipy import optimize
 
+eps = 1e-7
+
 #Prototypes
 def computeOptimalHorizon(M_infty,gamma,N,delta):
-    return (int(round((1 / np.log(M_infty)) *
+    return int(math.floor((1 / np.log(M_infty)) *
                       (np.log((gamma * M_infty - 1) / (np.log(gamma * M_infty))) +
                        np.log(np.log(gamma) / (gamma - 1)) +
-                       0.5 * (np.log(2 * N) - np.log(np.log(1 / delta)))))))
+                       0.5 * (np.log(2 * N) - np.log(np.log(1 / delta))))))
 
 def computeMInfty(behavioral_policy, target_policy):
     return ((behavioral_policy.covar / target_policy.covar) *
@@ -68,10 +70,10 @@ class HoeffdingOfflineLearner(OfflineLearner):
     def optimize(self,
                  initial_learning_rate,
                  learning_rate_search=False,
-                 min_learning_rate=1e-10,
+                 min_learning_rate=1e-6,
                  initial_parameter=None,
                  return_history=False,
-                 max_iter=100,
+                 max_iter=1000,
                  verbose=1):
         """
         Performs optimization
@@ -101,6 +103,7 @@ class HoeffdingOfflineLearner(OfflineLearner):
                                        self.delta)
         if H_star<self.H_min:
             if verbose: print("Not enough data!")
+            if verbose: print("Cannot optimize beyond",H_star,"steps")
             return (None,[]) if return_history else None
 
         #Compute M_infty constraint
@@ -108,7 +111,7 @@ class HoeffdingOfflineLearner(OfflineLearner):
 
         #Optimize target policy
         trajectory_generator = OfflineTrajectoryGenerator(self.dataset)
-        H = min(self.H_max,math.floor(H_star))
+        H = min(self.H_max,H_star)
         alpha = initial_learning_rate
         if return_history:
             history = []
@@ -117,6 +120,7 @@ class HoeffdingOfflineLearner(OfflineLearner):
         while it<=max_iter and H>0:
             #Perform one step of policy gradient optimization
             theta_old = self.target_policy.get_parameter()
+            if verbose: print(it,": H_star =",H_star,", theta =",theta_old,", alpha =",alpha)
             pg_learner = PolicyGradientLearner(trajectory_generator,
                                                self.target_policy,
                                                self.gamma,
@@ -125,7 +129,8 @@ class HoeffdingOfflineLearner(OfflineLearner):
                                                behavioral_policy =
                                                 self.behavioral_policy,
                                                importance_weighting_method='pdis',
-                                               max_iter_opt = 1)
+                                               max_iter_opt = 1,
+                                               verbose = 0)
             result = pg_learner.optimize(theta_old,return_history)
             if return_history:
                 theta_new = result[0]
@@ -136,7 +141,8 @@ class HoeffdingOfflineLearner(OfflineLearner):
 
             #Check M_infty constraint
             M_infty = computeMInfty(self.behavioral_policy,self.target_policy)
-            if M_infty>M_max:
+            if M_infty>M_max + eps:
+                if verbose: print(theta_new,"is too far!",M_infty,">",M_max)
                 #Rollback
                 self.target_policy.set_parameter(theta_old)
                 if learning_rate_search and alpha>min_learning_rate:
@@ -147,7 +153,7 @@ class HoeffdingOfflineLearner(OfflineLearner):
                     break
             else:
                 #Compute new optimal horizon
-                H_star = computeOptimalHorizon(M_infty,self.gamma,self.N,self.delta)
+                H_star = computeOptimalHorizon(M_infty,self.gamma,self.N,self.delta) 
                 H = min(self.H_max,math.floor(H_star))
                 it+=1
         if verbose: print("End optimization")

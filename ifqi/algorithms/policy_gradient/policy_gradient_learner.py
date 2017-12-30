@@ -170,8 +170,9 @@ class PolicyGradientLearner(object):
 
         while ite < self.max_iter_opt and gradient_norm > self.tol_opt:
 
-            print(theta)
-            print(gradient)
+            if self.verbose: 
+                print(theta)
+                print(gradient)
             theta = self.gradient_updater.update(gradient) #Gradient ascent update
 
             self.target_policy.set_parameter(theta)
