@@ -69,6 +69,7 @@ class LQG1D(gym.Env):
         cost = np.dot(self.state,
                       np.dot(self.Q, self.state)) + \
             np.dot(u, np.dot(self.R, u))
+        assert cost>=0
 
         self.state = np.array(xn.ravel())
         if self.discrete_reward:

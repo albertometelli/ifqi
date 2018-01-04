@@ -1,0 +1,1 @@
+{"env": "LQG1D", "mu_b": -0.2, "sigma_b": 2.0, "N": 1000, "mu_t": -0.2, "sigma_t": 1.0, "H_min": 3, "delta": 0.25, "alpha": 0.0001}
