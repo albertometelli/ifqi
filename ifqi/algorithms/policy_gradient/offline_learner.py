@@ -10,10 +10,9 @@ eps = 1e-7
 
 #Prototypes
 def computeOptimalHorizon(M_infty,gamma,N,delta):
-    return int(math.floor((1 / np.log(M_infty)) *
-                      (np.log((gamma * M_infty - 1) / (np.log(gamma * M_infty))) +
+    return 1. / np.log(M_infty) * (np.log((gamma * M_infty - 1) / (np.log(gamma * M_infty))) +
                        np.log(np.log(gamma) / (gamma - 1)) +
-                       0.5 * (np.log(2 * N) - np.log(np.log(1 / delta))))))
+                       0.5 * (np.log(2 * N) - np.log(np.log(1. / delta))))
 
 def computeMInfty(behavioral_policy, target_policy):
     return ((behavioral_policy.covar / target_policy.covar) *
@@ -24,8 +23,13 @@ def maxMInfty(H_min,gamma,N,delta):
     f = lambda minf: (gamma**H_min)/(1-gamma) - \
         (1 - (gamma*minf)**H_min)/(1 - gamma*minf) * \
         np.sqrt(np.log(1/delta) / (2*N))
+
     return scipy.optimize.fsolve(f, 1)
 
+#Overriding
+def maxMInfty(H_min,gamma,N,delta):
+    f = lambda minf: computeOptimalHorizon(minf,gamma,N,delta) - H_min
+    return scipy.optimize.fsolve(f,2)
 
 class OfflineLearner(object):
     """
@@ -41,8 +45,8 @@ class OfflineLearner(object):
                  target_policy,
                  gamma=0.99,
                  delta=0.01,
-                 batch_size = None
-                 random_start = True):
+                 batch_size = None,
+                 select_initial_point = True):
         """
         Constructor
         param H_min: the minimum acceptable horizon for the task to be solved
@@ -67,7 +71,7 @@ class OfflineLearner(object):
         self.trajectory_generator = OfflineTrajectoryGenerator(self.dataset)
         self.N = self.trajectory_generator.n_trajectories
         self.batch_size = batch_size if batch_size is not None else self.N
-        self.random_start = random_start
+        self.select_initial_point = select_initial_point
 
     def optimize(self):
         pass
@@ -118,7 +122,7 @@ class HoeffdingOfflineLearner(OfflineLearner):
         M_max = maxMInfty(self.H_min,self.gamma,self.batch_size,self.delta)
 
         #Optimize target policy
-        H = min(self.H_max,H_star)
+        H = min(self.H_max,math.floor(H_star))
         alpha = initial_learning_rate
         if return_history:
             history = []
@@ -127,11 +131,12 @@ class HoeffdingOfflineLearner(OfflineLearner):
         while it<=max_iter and H>0:
             #Perform one step of policy gradient optimization
             theta_old = self.target_policy.get_parameter()
-            if verbose: print(it,": H_star =",H_star,", theta =",theta_old,", alpha =",alpha)
+            if verbose: print(it,": H_star =",math.floor(H_star),", theta =",theta_old,", alpha =",alpha)
             pg_learner = PolicyGradientLearner(self.trajectory_generator,
                                                self.target_policy,
                                                self.gamma,
                                                H,
+                                               select_initial_point=self.select_initial_point,
                                                learning_rate = alpha,
                                                behavioral_policy =
                                                 self.behavioral_policy,
@@ -153,6 +158,7 @@ class HoeffdingOfflineLearner(OfflineLearner):
                 if verbose: print(theta_new,"is too far!",M_infty,">",M_max)
                 #Rollback
                 self.target_policy.set_parameter(theta_old)
+                history = history[:-1]
                 if learning_rate_search and alpha>min_learning_rate:
                     alpha/=2
                     continue
@@ -164,6 +170,10 @@ class HoeffdingOfflineLearner(OfflineLearner):
                 H_star = computeOptimalHorizon(
                     M_infty, self.gamma, self.batch_size, self.delta)
                 H = min(self.H_max,math.floor(H_star))
+                print('%s <= %s' % (M_infty,M_max))
+                if H<self.H_min: #This should not happen according to theory
+                    print("UNEXPECTED: H*<H_MIN")
+                    H = self.H_min
                 it+=1
         if verbose: print("End optimization")
 

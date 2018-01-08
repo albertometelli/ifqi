@@ -10,18 +10,18 @@ import json
 #Settings
 mu_t = -0.2
 sigma_t = 1.
-H_min = 4
+H_min = 3
 H_max = 20
 target_policy = GaussianPolicyLinearMean(mu_t,sigma_t**2)
 gamma = .99
 delta = .25
-learning_rate_search = False
-learning_rate = 1e-4 #fixed or initial learning rate
-max_iter = 3
+learning_rate_search = True
+learning_rate = 1 #fixed or initial learning rate
+max_iter = 200
 dataset_path = '../datasets/'
 dataset_label = '10000'
-batch_size = None
-random_start = True
+batch_size = 1000
+select_initial_point = True
 
 try:
     #Load dataset
@@ -51,7 +51,7 @@ optimizer = HoeffdingOfflineLearner(H_min,
                                     gamma=gamma,
                                     delta=delta,
                                     batch_size=batch_size,
-                                    random_start=random_start)
+                                    select_initial_point=select_initial_point)
 theta,history = optimizer.optimize(learning_rate,
                                    learning_rate_search=learning_rate_search,
                                    return_history=True,
@@ -67,9 +67,11 @@ info = {'env' : 'LQG1D',
         'mu_b' : mu_b, 
         'sigma_b' : sigma_b, 
         'N' : N,
+        'batch_size' : batch_size,
         'mu_t': mu_t,
         'sigma_t': sigma_t,
         'H_min': H_min,
+        'select_initial_point': select_initial_point,
         'delta': delta,
         'alpha': learning_rate
        }
