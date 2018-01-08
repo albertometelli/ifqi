@@ -7,9 +7,10 @@ from spmi.algorithms.policy_chooser import *
 from spmi.algorithms.model_chooser import *
 import numpy as np
 import copy
-from gym.utils import seeding
 import matplotlib.pyplot as plt
 import time
+import cPickle
+import os
 
 path_name = 'data'
 
@@ -17,11 +18,23 @@ if __name__ == '__main__':
 
     startTime = time.time()
 
-    mdp = TeacherStudentEnv(n_literals=2,
-                        max_value=1,
-                        max_update=1,
+    mdp = TeacherStudentEnv(n_literals=3,
+                        max_value=3,
+                        max_update=3,
                         max_literals_in_examples=2,
                         horizon=10)
+
+    simulation_name = '%s-%s-%s-%s-%s' % (mdp.n_literals,
+                                  mdp.max_value,
+                                  mdp.max_update,
+                                  mdp.max_literals_in_examples,
+                                  mdp.horizon)
+
+    if not os.path.exists('data/' + simulation_name):
+        os.makedirs('data/' + simulation_name)
+
+    with open('data/' + simulation_name + '/' + simulation_name, 'wb') as pickle_file:
+        cPickle.dump(mdp, pickle_file)
 
     uniform_policy = UniformPolicy(mdp)
     original_model = copy.deepcopy(mdp.P)
@@ -33,7 +46,7 @@ if __name__ == '__main__':
     model_chooser = DoNotCreateTransitionsGreedyModelChooser(mdp.P, mdp.nS, mdp.nA)
 
     eps = 0.0
-    spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=20000, use_target_trick=True)
+    spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=30000, use_target_trick=True)
 
     #-------------------------------------------------------------------------------
     #SPMI
@@ -51,6 +64,7 @@ if __name__ == '__main__':
     betas = np.array(spmi.betas)
     p_change = np.cumsum(1 - np.array(spmi.p_change))
     m_change = np.cumsum(1 - np.array(spmi.m_change))
+    spmi.save_simulation('data/'+ simulation_name, 'spmi.csv')
 
     #-------------------------------------------------------------------------------
     #SPMI sup
@@ -69,6 +83,7 @@ if __name__ == '__main__':
     sup_betas = np.array(spmi.betas)
     sup_p_change = np.cumsum(1 - np.array(spmi.p_change))
     sup_m_change = np.cumsum(1 - np.array(spmi.m_change))
+    spmi.save_simulation('data/'+ simulation_name, 'sup.csv')
 
     #-------------------------------------------------------------------------------
     #SPMI no full step
@@ -87,6 +102,7 @@ if __name__ == '__main__':
     int_betas = np.array(spmi.betas)
     int_p_change = np.cumsum(1 - np.array(spmi.p_change))
     int_m_change = np.cumsum(1 - np.array(spmi.m_change))
+    spmi.save_simulation('data/'+ simulation_name,  'nofull.csv')
 
     #-------------------------------------------------------------------------------
     #SPMI alternated
@@ -107,6 +123,7 @@ if __name__ == '__main__':
     alt_betas = np.array(spmi.betas)
     alt_p_change = np.cumsum(1 - np.array(spmi.p_change))
     alt_m_change = np.cumsum(1 - np.array(spmi.m_change))
+    spmi.save_simulation('data/'+ simulation_name, 'alt.csv')
 
     #-------------------------------------------------------------------------------
     #SPMI sequential
@@ -127,6 +144,7 @@ if __name__ == '__main__':
     seq_betas = spmi.betas
     seq_p_change = np.cumsum(1 - np.array(spmi.p_change))
     seq_m_change = np.cumsum(1 - np.array(spmi.m_change))
+    spmi.save_simulation('data/'+ simulation_name, 'seq.csv')
 
     #-------------------------------------------------------------------------------
     #plots

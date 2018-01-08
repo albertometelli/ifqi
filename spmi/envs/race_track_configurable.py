@@ -2,6 +2,10 @@ import numpy as np
 import os
 import pandas as pd
 from spmi.envs import discrete
+import copy
+import sys
+from six import StringIO
+from gym import spaces, utils
 
 
 class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
@@ -63,6 +67,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         # P1 and P2 are two extreme models that we aim to combine optimally
         self.P1 = {s: {a: [] for a in range(nA)} for s in range(nS)}
         self.P2 = {s: {a: [] for a in range(nA)} for s in range(nS)}
+
 
         # reward computation
         def rstate(x, y, vx, vy, weight):
@@ -167,10 +172,15 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                         li1 = self.P1[s][a_index]
                         li2 = self.P2[s][a_index]
                         type = track[x, y]
+
+                        #nss = []
+
                         if type == '2':  # if s is goal state
                             li1.append((1.0, s, 0, True))
                             li2.append((1.0, s, 0, True))
+                            #nss.append(s)
                         else:
+
                             for outcome in [0, 1]:
                                 (nx, ny, nvx, nvy) = next_s(x, y, vx, vy, a_value, outcome)
                                 ns = self._s_to_i(nx, ny, nvx, nvy)
@@ -181,8 +191,60 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                                 psucc2 = max_psucc2 - ((max_psucc2 - min_psucc2) / max_speed) * speed
                                 prob1 = psucc1 * outcome + (1 - psucc1) * (1 - outcome)
                                 prob2 = psucc2 * outcome + (1 - psucc2) * (1 - outcome)
-                                li1.append((prob1, ns, reward, done))
-                                li2.append((prob2, ns, reward, done))
+                                if outcome == 1 and ns == li1[0][1]:
+                                    li1[0] = (li1[0][0] + prob1, ns, prob1 * reward + (1 - prob1) * li1[0][2], done)
+                                    li2[0] = (li2[0][0] + prob2, ns, prob2 * reward + (1 - prob2) * li2[0][2], done)
+                                else:
+                                    li1.append((prob1, ns, reward, done))
+                                    li2.append((prob2, ns, reward, done))
+                                #nss.append(ns)
+                            '''
+                            (nx, ny, nvx, nvy) = next_s(x, y, vx, vy, a_value, 1)
+                            ns = self._s_to_i(nx, ny, nvx, nvy)
+                            ntype = track[nx, ny]
+                            reward = rstate(nx, ny, nvx, nvy, reward_weight)
+                            done = (ntype == '2')
+                            psucc1 = min_psucc + ((max_psucc - min_psucc) / max_speed) * speed
+                            psucc2 = max_psucc2 - ((max_psucc2 - min_psucc2) / max_speed) * speed
+                            li1.append((psucc1, ns, reward, done))
+                            li2.append((psucc2, ns, reward, done))
+
+                            pins1 = (1 - psucc1) / self.nA
+                            pins2 = (1 - psucc2) / self.nA
+
+                            for a in range(self.nA):
+                                (nx, ny, nvx, nvy) = next_s(x, y, vx, vy, a, 1)
+                                ns = self._s_to_i(nx, ny, nvx, nvy)
+
+                                found = -1
+                                for i in range(len(li1)):
+                                    if li1[i][1] == ns:
+                                        found = i
+                                        break
+
+                                if found == -1:
+                                    ntype = track[nx, ny]
+                                    reward = rstate(nx, ny, nvx, nvy, reward_weight)
+                                    done = (ntype == '2')
+                                    li1.append((pins1, ns, reward, done))
+                                    li2.append((pins2, ns, reward, done))
+                                else:
+                                    li1[i] = (li1[i][0] + pins1, li1[i][1], li1[i][2], li1[i][3])
+                                    li2[i] = (li2[i][0] + pins2, li2[i][1], li2[i][2], li2[i][3])
+                                '''
+                        '''
+                        for [nx, ny] in lin:
+                            for nvx in vel:
+                                for nvy in vel:
+                                    ns = self._s_to_i(nx, ny, nvx, nvy)
+                                    if not ns in nss:
+                                        reward = rstate(nx, ny, nvx, nvy,
+                                                        reward_weight)
+                                        ntype = track[nx, ny]
+                                        done = (ntype == '2')
+                                        li1.append((0., ns, reward, done))
+                                        li2.append((0., ns, reward, done))
+                        '''
 
         # instantiation of model rep for P1 and P2
         self.P1_sas = self.p_sas(self.P1)
@@ -190,8 +252,8 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.P2_sas = self.p_sas(self.P2)
         self.P2_sa = self.p_sa(self.P2_sas)
         # linear combination of P1,P2 with parameter k
-        k = initial_configuration
-        self.P = P = self.model_configuration(k)
+        self.k = initial_configuration
+        self.P = P = self.model_configuration(self.k)
 
         # R ----------
         R = np.zeros(nS)
@@ -203,6 +265,9 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
 
         # call the init method of the super class (Discrete)
         super(RaceTrackConfigurableEnv, self).__init__(nS, nA, P, isd)
+
+    def set_model(self, model):
+        self.P = model
 
     # from (vx,vy) to the set of valid actions
     def _valid_a(self, vx, vy):
@@ -246,6 +311,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
 
     # linear combination of the extreme models(P1,P2) with parameter k
     def model_configuration(self, k):
+        self.k = k
         model = {s: {a: [] for a in range(self.nA)} for s in range(self.nS)}
         for s in range(self.nS):
             for a in range(self.nA):
@@ -346,3 +412,34 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
             a = a + 1
 
         return P_sa
+
+    def _render(self, mode='human', close=False):
+        if close:
+            return
+
+        outfile = StringIO() if mode == 'ansi' else sys.stdout
+
+        out = self.track.copy().tolist()
+
+        mapper = {'1' : utils.colorize('S', 'blue', highlight=True),
+                  '2' : utils.colorize('G', 'green', highlight=True),
+                  '3' : ':',
+                  '4' : '#',
+                  '5' : '.',
+                  ' ' : ' '}
+
+        for i in range(len(out)):
+            for j in range(len(out[i])):
+                out[i][j] = mapper[out[i][j]]
+
+        out = [[c.decode('utf-8') for c in line] for line in out]
+        x, y, vx, vy = self._i_to_s(np.asscalar(self.s))
+
+        out[x][y] = utils.colorize(out[x][y], 'yellow', highlight=True)
+
+        outfile.write("\n".join(["".join(row) for row in out]) + "\n")
+        outfile.write("\n")
+
+        # No need to return anything for human
+        if mode != 'human':
+            return outfile

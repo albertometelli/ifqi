@@ -13,12 +13,12 @@ startTime = time.time()
 
 k = 0.5
 
-mdp = RaceTrackConfigurableEnv(track_file='track0easy', initial_configuration=k)
+mdp = RaceTrackConfigurableEnv(track_file='track0easy', initial_configuration=k, reward_weight=[1., 0., 0., 0., 0.])
 
 print('nS: {0}'.format(mdp.nS))
 print('MDP instantiated')
 
-grid_step = 0.01
+grid_step = 0.05
 threshold = 0.0001
 
 omf = OptimalModelFinder(mdp)
@@ -29,14 +29,14 @@ coefficient = np.array(omf.coefficient)
 performance = np.array(omf.performance)
 
 
-plt.switch_backend('pdf')
+#plt.switch_backend('pdf')
 
-plt.figure()
-plt.title('Optimal Model Performance')
-plt.xlabel('Coefficient')
-plt.ylabel('Performance')
+#plt.figure()
+#plt.title('Optimal Model Performance')
+#plt.xlabel('Coefficient')
+#plt.ylabel('Performance')
 plt.plot(coefficient, performance)
-plt.savefig(path_name + "/track1")
+#plt.savefig(path_name + "/track1")
 
 
 print('The script took {0} minutes'.format((time.time() - startTime) / 60))

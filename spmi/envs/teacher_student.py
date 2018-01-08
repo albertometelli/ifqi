@@ -128,6 +128,7 @@ class TeacherStudentEnv(discrete.DiscreteEnv):
     def _build_P(self):
 
         for s in range(self.nS):
+            print("%s / %s" % (s, self.nS))
             for a in range(self.nA):
                 l = self.P[s][a]
                 sum_prob = 0.
