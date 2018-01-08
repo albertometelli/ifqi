@@ -40,7 +40,8 @@ class OfflineLearner(object):
                  behavioral_policy,
                  target_policy,
                  gamma=0.99,
-                 delta=0.01):
+                 delta=0.01,
+                 batch_size = None):
         """
         Constructor
         param H_min: the minimum acceptable horizon for the task to be solved
@@ -50,6 +51,8 @@ class OfflineLearner(object):
         param target_policy: policy to optimize
         param gamma: discount factor
         param delta: tolerance
+        param batch_size: number of trajectories used to estimate the gradient;
+            default behavior is full gradient
         """
 
         self.H_min = H_min
@@ -62,6 +65,7 @@ class OfflineLearner(object):
 
         self.trajectory_generator = OfflineTrajectoryGenerator(self.dataset)
         self.N = self.trajectory_generator.n_trajectories
+        self.batch_size = batch_size if batch_size is not None else self.N
 
     def optimize(self):
         pass
@@ -101,7 +105,7 @@ class HoeffdingOfflineLearner(OfflineLearner):
         M_infty = computeMInfty(self.behavioral_policy,self.target_policy)
         H_star = computeOptimalHorizon(M_infty,
                                        self.gamma,
-                                       self.N,
+                                       self.batch_size,
                                        self.delta)
         if H_star<self.H_min:
             if verbose: print("Not enough data!")
@@ -109,7 +113,7 @@ class HoeffdingOfflineLearner(OfflineLearner):
             return (None,[]) if return_history else None
 
         #Compute M_infty constraint
-        M_max = maxMInfty(self.H_min,self.gamma,self.N,self.delta)
+        M_max = maxMInfty(self.H_min,self.gamma,self.batch_size,self.delta)
 
         #Optimize target policy
         H = min(self.H_max,H_star)
@@ -131,7 +135,7 @@ class HoeffdingOfflineLearner(OfflineLearner):
                                                 self.behavioral_policy,
                                                importance_weighting_method='pdis',
                                                max_iter_opt = 1,
-                                               max_iter_eval = self.N,
+                                               max_iter_eval = self.batch_size,
                                                verbose = 0)
             result = pg_learner.optimize(theta_old,return_history)
             if return_history:
@@ -155,7 +159,8 @@ class HoeffdingOfflineLearner(OfflineLearner):
                     break
             else:
                 #Compute new optimal horizon
-                H_star = computeOptimalHorizon(M_infty,self.gamma,self.N,self.delta) 
+                H_star = computeOptimalHorizon(
+                    M_infty, self.gamma, self.batch_size, self.delta)
                 H = min(self.H_max,math.floor(H_star))
                 it+=1
         if verbose: print("End optimization")
