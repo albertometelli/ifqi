@@ -27,6 +27,7 @@ class PolicyGradientLearner(object):
                  gradient_updater='vanilla',
                  behavioral_policy=None,
                  importance_weighting_method=None,
+                 select_initial_point=None,
                  max_iter_eval=100,
                  tol_eval=-1.,
                  max_iter_opt=100,
@@ -89,6 +90,7 @@ class PolicyGradientLearner(object):
         self.reward_index = reward_index
         self.baseline_type = baseline_type
         self.delta = delta
+        self.select_initial_point = select_initial_point
 
         if importance_weighting_method is not None and behavioral_policy is None:
             raise ValueError('If you want to use importance weighting you must \
@@ -144,6 +146,7 @@ class PolicyGradientLearner(object):
                                                         self.is_estimator,
                                                         self.gamma,
                                                         self.horizon,
+                                                        self.select_initial_point,
                                                         self.bound,
                                                         self.tol_eval,
                                                         self.max_iter_eval,
@@ -158,6 +161,7 @@ class PolicyGradientLearner(object):
                                                      self.is_estimator,
                                                      self.gamma,
                                                      self.horizon,
+                                                     self.select_initial_point,
                                                      self.bound,
                                                      self.tol_eval,
                                                      self.max_iter_eval,
@@ -212,6 +216,7 @@ class PolicyGradientLearner(object):
         while ite < self.max_iter_opt and gradient_norm > self.tol_opt:
 
             theta = self.gradient_updater.update(gradient) #Gradient ascent update
+            print(theta)
 
             self.target_policy.set_parameter(theta)
             self.estimator.set_target_policy(self.target_policy)
@@ -370,6 +375,7 @@ class GradientEstimator(object):
                  is_estimator,
                  gamma,
                  horizon,
+                 select_initial_point=False,
                  bound=None,
                  tol=1e-5,
                  max_iter=100,
@@ -410,6 +416,7 @@ class GradientEstimator(object):
         self.is_estimator = is_estimator
         self.dim = target_policy.get_n_parameters()
         self.bound = bound
+        self.select_initial_point = select_initial_point
 
     def set_target_policy(self, target_policy):
         self.target_policy = target_policy
@@ -466,7 +473,13 @@ class GradientEstimator(object):
 
             # Collect a trajectory
             self.trajectory_generator.set_policy(self.target_policy)
-            traj = self.trajectory_generator.next()[:H_star]
+
+            traj = self.trajectory_generator.next()
+            if not self.select_initial_point or len(traj) == H_star:
+                k = 0
+            else:
+                k = np.random.randint(0, len(traj) - H_star)
+            traj = traj[k:k+H_star]
 
             #Compute lenght
             horizons.append(traj.shape[0])
@@ -479,6 +492,9 @@ class GradientEstimator(object):
             # Compute the trajectory return
             traj_return = np.zeros(int(self.horizon))
             traj_return[:horizons[-1]] = traj[:, self.reward_index] * self.gamma ** np.arange(horizons[-1])
+
+            traj_return *= self.gamma ** k
+
             traj_returns = np.vstack([traj_returns, [traj_return]])
 
             # Compute the trajectory log policy gradient
@@ -493,7 +509,7 @@ class GradientEstimator(object):
         gradient_estimate = np.mean(np.sum(traj_log_gradients * \
                                 ws[:, :, np.newaxis] * \
                                 (traj_returns[:, :, np.newaxis] - baseline), axis=1), axis=0)
-        gradient_estimate = gradient_estimate + penalization_gradient
+        gradient_estimate = gradient_estimate + self.gamma ** k * penalization_gradient
 
 
         print("penalization gradient %s" % penalization_gradient)

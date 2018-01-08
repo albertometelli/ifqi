@@ -12,7 +12,7 @@ K_opt = mdp.computeOptimalK()
 sb = 2.
 st = 1.
 mub = -0.2
-mut = -0.
+mut = -0.2
 N = 5000
 
 #Instantiate policies
@@ -37,6 +37,7 @@ offline_reinforce_cheb = PolicyGradientLearner(offline_trajectory_generator,
                                   target_policy,
                                   mdp.gamma,
                                   mdp.horizon,
+                                  select_initial_point=True,
                                   bound='chebyshev',
                                   delta=0.2,
                                   behavioral_policy=behavioral_policy,
@@ -45,13 +46,14 @@ offline_reinforce_cheb = PolicyGradientLearner(offline_trajectory_generator,
                                   estimator='gpomdp',
                                   gradient_updater='adam',
                                   max_iter_opt=200,
-                                  max_iter_eval=500,
+                                  max_iter_eval=1000,
                                   verbose=1)
 
 offline_reinforce_hoeff = PolicyGradientLearner(offline_trajectory_generator,
                                   target_policy,
                                   mdp.gamma,
                                   mdp.horizon,
+                                  select_initial_point=True,
                                   bound='hoeffding',
                                   delta=0.2,
                                   behavioral_policy=behavioral_policy,
@@ -60,13 +62,14 @@ offline_reinforce_hoeff = PolicyGradientLearner(offline_trajectory_generator,
                                   estimator='gpomdp',
                                   gradient_updater='adam',
                                   max_iter_opt=200,
-                                  max_iter_eval=500,
+                                  max_iter_eval=1000,
                                   verbose=1)
 
 offline_reinforce_bern = PolicyGradientLearner(offline_trajectory_generator,
                                   target_policy,
                                   mdp.gamma,
                                   mdp.horizon,
+                                  select_initial_point=True,
                                   bound='bernstein',
                                   delta=0.2,
                                   behavioral_policy=behavioral_policy,
@@ -75,27 +78,28 @@ offline_reinforce_bern = PolicyGradientLearner(offline_trajectory_generator,
                                   estimator='gpomdp',
                                   gradient_updater='adam',
                                   max_iter_opt=200,
-                                  max_iter_eval=500,
+                                  max_iter_eval=1000,
                                   verbose=1)
 
 offline_reinforce = PolicyGradientLearner(offline_trajectory_generator,
                                   target_policy,
                                   mdp.gamma,
                                   mdp.horizon,
+                                  select_initial_point=True,
                                   behavioral_policy=behavioral_policy,
                                   importance_weighting_method='is',
                                   learning_rate=0.002,
                                   estimator='gpomdp',
                                   gradient_updater='adam',
                                   max_iter_opt=200,
-                                  max_iter_eval=500,
+                                  max_iter_eval=1000,
                                   verbose=1)
 
-initial_parameter = target_policy.from_param_to_vec(-0.)
+initial_parameter = target_policy.from_param_to_vec(-0.2)
 
+_, history_offline_reinforce_hoeff = offline_reinforce_hoeff.optimize(initial_parameter, return_history=True)
 _, history_offline_reinforce_bern = offline_reinforce_bern.optimize(initial_parameter, return_history=True)
 _, history_offline_reinforce_cheb = offline_reinforce_cheb.optimize(initial_parameter, return_history=True)
-_, history_offline_reinforce_hoeff = offline_reinforce_hoeff.optimize(initial_parameter, return_history=True)
 _, history_offline_reinforce = offline_reinforce.optimize(initial_parameter, return_history=True)
 
 
