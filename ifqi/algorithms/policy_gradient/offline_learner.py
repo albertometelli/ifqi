@@ -55,11 +55,13 @@ class OfflineLearner(object):
         self.H_min = H_min
         self.H_max = H_max
         self.dataset = dataset
-        self.N = np.shape(dataset)[0]
         self.behavioral_policy = behavioral_policy
         self.target_policy = target_policy
         self.gamma = gamma
         self.delta = delta
+
+        self.trajectory_generator = OfflineTrajectoryGenerator(self.dataset)
+        self.N = self.trajectory_generator.n_trajectories
 
     def optimize(self):
         pass
@@ -110,7 +112,6 @@ class HoeffdingOfflineLearner(OfflineLearner):
         M_max = maxMInfty(self.H_min,self.gamma,self.N,self.delta)
 
         #Optimize target policy
-        trajectory_generator = OfflineTrajectoryGenerator(self.dataset)
         H = min(self.H_max,H_star)
         alpha = initial_learning_rate
         if return_history:
@@ -121,7 +122,7 @@ class HoeffdingOfflineLearner(OfflineLearner):
             #Perform one step of policy gradient optimization
             theta_old = self.target_policy.get_parameter()
             if verbose: print(it,": H_star =",H_star,", theta =",theta_old,", alpha =",alpha)
-            pg_learner = PolicyGradientLearner(trajectory_generator,
+            pg_learner = PolicyGradientLearner(self.trajectory_generator,
                                                self.target_policy,
                                                self.gamma,
                                                H,
@@ -130,6 +131,7 @@ class HoeffdingOfflineLearner(OfflineLearner):
                                                 self.behavioral_policy,
                                                importance_weighting_method='pdis',
                                                max_iter_opt = 1,
+                                               max_iter_eval = self.N,
                                                verbose = 0)
             result = pg_learner.optimize(theta_old,return_history)
             if return_history:
@@ -163,7 +165,6 @@ class HoeffdingOfflineLearner(OfflineLearner):
             return self.target_policy.get_parameter(), history
         else:
             return self.target_policy.get_parameter()
-
 
 
 
