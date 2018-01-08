@@ -6,7 +6,7 @@ from spmi.utils.uniform_policy import UniformPolicy
 from spmi.envs.race_track_configurable import RaceTrackConfigurableEnv
 from spmi.algorithms.spmi_exact import SPMI
 
-dir_path = "/Users/mirco/Desktop/Simulazioni/Simulazione_SPMI"
+dir_path = "/Users/mirco/Desktop/Simulazioni/SPMI/Simulazione_SPMI"
 
 
 startTime = time.time()

@@ -38,7 +38,7 @@ class OptimalModelFinder(object):
             return V
 
         # loop performance computation
-        for i in np.arange(0, 1, grid_step):
+        for i in np.arange(0, 1 + grid_step, grid_step):
             mdp.model_configuration(i)
             V_star = value_iteration()
             J_star = np.dot(mu, V_star)

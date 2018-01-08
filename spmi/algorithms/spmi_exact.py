@@ -16,7 +16,7 @@ class SPMI(object):
         self.gamma = mdp.gamma
         self.horizon = mdp.horizon
         self.eps = eps
-        self.iteration_horizon = 10000
+        self.iteration_horizon = 1000
         self.threshold = 0.0001
 
         # attributes related to
@@ -75,25 +75,33 @@ class SPMI(object):
                     p_dist_sup = dist_sup_old
                     p_dist_mean = dist_mean_old
                     target_policy = target_policy_old
-            alfa = 0
+            alfa0 = 0
+            alfa1 = 0
             if p_dist_sup != 0 and p_dist_mean != 0:
-                alfa_star = ((1 - gamma) * p_er_adv) / (2 * gamma * p_dist_sup * p_dist_mean)
-                alfa = min(1, alfa_star)
+                alfa_star0 = ((1 - gamma) * p_er_adv) / (2 * gamma * p_dist_sup * p_dist_mean)
+                alfa0 = np.clip(alfa_star0, 0., 1.)
+                alfa_star1 = (((1 - gamma) * p_er_adv) / (2 * gamma * p_dist_sup * p_dist_mean)) \
+                             - (((m_dist_mean / p_dist_mean) + (m_dist_sup / p_dist_sup)) / 2)
+                alfa1 = np.clip(alfa_star1, 0., 1.)
 
             # beta star
-            beta = 0
+            beta0 = 0
+            beta1 = 0
             if m_dist_sup != 0 and m_dist_mean != 0:
-                beta_star = ((1 - gamma) * m_er_adv) / (2 * (gamma ** 2) * m_dist_sup * m_dist_mean)
-                beta = min(1, beta_star)
+                beta_star0 = ((1 - gamma) * m_er_adv) / (2 * (gamma ** 2) * m_dist_sup * m_dist_mean)
+                beta0 = np.clip(beta_star0, 0., 1.)
+                beta_star1 = ((1 - gamma) * m_er_adv) / (2 * (gamma ** 2) * m_dist_sup * m_dist_mean) \
+                             - (((p_dist_mean / m_dist_mean) + (p_dist_sup / m_dist_sup)) / (2 * gamma))
+                beta1 = np.clip(beta_star1, 0., 1.)
 
             # bounds comparison and update selection
             bound_star = float("-inf")
             alfa_star = 0
             beta_star = 0
-            for alfa, beta in [(0, beta), (alfa, 0), (alfa, 1), (1, beta)]:
+            for alfa, beta in [(0, beta0), (alfa0, 0), (alfa1, 1), (1, beta1)]:
                 bound = alfa * p_er_adv + beta * m_er_adv - (gamma / 2 * (1 - gamma)) *\
                             ((alfa ** 2) * p_dist_sup * p_dist_mean + gamma * (beta ** 2) * m_dist_sup * m_dist_mean
-                             + alfa * beta * p_dist_sup * m_dist_sup + alfa * beta * p_dist_mean + m_dist_sup)
+                             + alfa * beta * p_dist_sup * m_dist_mean + alfa * beta * p_dist_mean * m_dist_sup)
                 # update selection
                 if bound > bound_star:
                     bound_star = bound
@@ -166,22 +174,30 @@ class SPMI(object):
                     p_dist_sup = dist_sup_old
                     p_dist_mean = dist_mean_old
                     target = target_old
-            alfa = 0
+            alfa0 = 0
+            alfa1 = 0
             if p_dist_sup != 0:
-                alfa_star = ((1 - gamma) * p_er_adv) / (2 * gamma * p_dist_sup * p_dist_sup)
-                alfa = min(1, alfa_star)
+                alfa_star0 = ((1 - gamma) * p_er_adv) / (2 * gamma * p_dist_sup * p_dist_sup)
+                alfa0 = np.clip(alfa_star0, 0., 1.)
+                alfa_star1 = ((1 - gamma) * p_er_adv) / (2 * gamma * p_dist_sup * p_dist_sup) \
+                             - (m_dist_sup / p_dist_sup)
+                alfa1 = np.clip(alfa_star1, 0., 1.)
 
             # beta star
-            beta = 0
+            beta0 = 0
+            beta1 = 0
             if m_dist_sup != 0:
-                beta_star = ((1 - gamma) * m_er_adv) / (2 * (gamma ** 2) * m_dist_sup * m_dist_sup)
-                beta = min(1, beta_star)
+                beta_star0 = ((1 - gamma) * m_er_adv) / (2 * (gamma ** 2) * m_dist_sup * m_dist_sup)
+                beta0 = np.clip(beta_star0, 0., 1.)
+                beta_star1 = ((1 - gamma) * m_er_adv) / (2 * (gamma ** 2) * m_dist_sup * m_dist_sup) \
+                             - ((p_dist_sup / m_dist_sup) / gamma)
+                beta1 = np.clip(beta_star1, 0., 1.)
 
             # bounds comparison and update selection
             bound_star = float("-inf")
             alfa_star = 0
             beta_star = 0
-            for alfa, beta in [(0, beta), (1, beta), (alfa, 0), (alfa, 1)]:
+            for alfa, beta in [(0, beta0), (1, beta1), (alfa0, 0), (alfa1, 1)]:
                 bound = alfa * p_er_adv + beta * m_er_adv - (gamma / 2 * (1 - gamma)) *\
                             ((alfa ** 2) * (p_dist_sup ** 2) + gamma * (beta ** 2) * (m_dist_sup ** 2) +
                                                                 2 * alfa * beta * p_dist_sup * m_dist_sup)
@@ -274,9 +290,9 @@ class SPMI(object):
             beta_star = 0
             for alfa, beta in [(0, beta), (alfa, 0)]:
                 bound = alfa * p_er_adv + beta * m_er_adv - (gamma / 2 * (1 - gamma)) * \
-                                                            ((alfa ** 2) * p_dist_sup * p_dist_mean + gamma * (
-                                                            beta ** 2) * m_dist_sup * m_dist_mean
-                                                             + alfa * beta * p_dist_sup * m_dist_sup + alfa * beta * p_dist_mean + m_dist_sup)
+                            ((alfa ** 2) * p_dist_sup * p_dist_mean + gamma *
+                            (beta ** 2) * m_dist_sup * m_dist_mean
+                            + alfa * beta * p_dist_sup * m_dist_sup + alfa * beta * p_dist_mean + m_dist_sup)
                 # update selection
                 if bound > bound_star:
                     bound_star = bound

@@ -25,8 +25,8 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         # number of valid (x,y) tuple
         self.nlin = nlin = lin.shape[0]
 
-        self.horizon = 50
-        self.gamma = 0.95
+        self.horizon = 20
+        self.gamma = 0.9
 
         # nA ---
         self.nA = nA = 5  # 0=KEEP, 1=INCx, 2=INCy, 3=DECx, 4=DECy
