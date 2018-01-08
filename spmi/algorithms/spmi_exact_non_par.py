@@ -197,6 +197,9 @@ class SPMI(object):
                 policy, model, gamma, horizon, nS, nA, d_mu)
             m_er_adv, m_dist_sup, m_dist_mean, target_model = self.model_chooser.choose(model, delta_mu, U)
 
+            if self.iteration == 1120:
+                pass
+
         return policy, model
 
     # implementation of safe policy (and) model iteration
@@ -515,8 +518,8 @@ class SPMI(object):
             J_p_m = evaluator.compute_performance(mu, reward, \
                     policy, model, gamma, horizon, nS, nA)
 
-            self._utility_trace_p(J_p_m, alpha_star, p_er_adv, p_dist_sup,
-                        p_dist_mean, target_policy, target_policy_old, convergence)
+            self._utility_trace_p(J_p_m, alpha_star, p_er_adv_star, p_dist_sup_star,
+                                  p_dist_mean_star, target_policy, target_policy_old, convergence)
 
             # policy chooser
             target_policy_old = target_policy_star
@@ -721,7 +724,8 @@ class SPMI(object):
 
     # method to combine linearly target and current with coefficient alfa
     def policy_combination(self, alfa, target, current):
-        return policy_convex_combination(target, current, alfa)
+        new_policy =  policy_convex_combination(target, current, alfa)
+        return new_policy
 
     # method to check the equivalence fo two given models
     def model_equiv_check(self, model1, model2):
@@ -881,3 +885,27 @@ class SPMI(object):
         self.coefficients = list()
         self.p_change = list()
         self.m_change = list()
+
+    # public method to save the execution data into
+    # a csv file (directory path as parameter)
+    def save_simulation(self, dir_path, file_name, entries=None):
+
+        header_string = 'iterations;evaluations;p_advantages;m_advantages;' \
+                        'p_dist_sup;p_dist_mean;m_dist_sup;m_dist_mean;alfa;beta;p_change;m_change'
+
+        # if coefficients not empty we are using a parametric model
+        execution_data = [self.iterations, self.evaluations,
+                          self.p_advantages, self.m_advantages,
+                          self.p_dist_sup, self.p_dist_mean,
+                          self.m_dist_sup, self.m_dist_mean,
+                          self.alfas, self.betas, self.p_change, self.m_change]
+
+        execution_data = np.array(execution_data).T
+
+        if entries is not None:
+            filter = np.arange(0, len(execution_data), len(execution_data) / entries)
+            execution_data = execution_data[filter]
+
+
+        np.savetxt(dir_path + '/' + file_name, execution_data,
+                   delimiter=';', header=header_string, fmt='%.4e')

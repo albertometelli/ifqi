@@ -6,3 +6,7 @@ def tic():
 
 def toc(fmt='Elapsed'):
     print fmt + ' - %s s' % (time() - _tstart_stack.pop())
+
+def toctic(fmt='Elapsed'):
+    toc(fmt)
+    tic()
