@@ -47,14 +47,16 @@ class DeterministicPolicyLinearMean(Policy):
 
 class GaussianPolicyLinearMean(ParametricPolicy):
     '''
+    Gaussian Policy with Mean computed as Ks and constant variance
     '''
 
-    def __init__(self, K, covar):
+    def __init__(self, K, covar, max_state=4.0):
         self.K = np.array(K, ndmin=2)
         self.covar = np.array(covar, ndmin=2)
         self.inv_covar = la.inv(self.covar)
         self.dimension = self.K.shape[0]
         self.n_parameters = self.K.shape[0] ** 2
+        self.max_state = max_state
         self.seed()
 
     def _mean(self, state):
@@ -103,9 +105,71 @@ class GaussianPolicyLinearMean(ParametricPolicy):
     def get_n_parameters(self):
         return self.n_parameters
 
+    def D_inf(self, other, state):
+        state = np.array(state, ndmin=1)
+        inv_covar_diff = la.inv(other.covar - self.covar)
+        mean_diff = np.dot(other.K - self.K, state)
+        return la.det(other.covar) ** (self.dimension/2.) / la.det(self.covar) ** (self.dimension/2.) * \
+               np.exp(.5 * la.multi_dot([mean_diff, inv_covar_diff, mean_diff]))
+
+    def M_inf(self, other):
+        inv_covar_diff = la.inv(other.covar - self.covar)
+        param_diff = self.K - other.K
+        matrix = la.multi_dot([param_diff, inv_covar_diff, param_diff])
+        eigvals, _ = la.eigh(matrix)
+        max_eigval = eigvals[-1]
+        return la.det(other.covar) ** (self.dimension/2.) / la.det(self.covar) ** (self.dimension/2.) * \
+               np.exp(.5 * max_eigval * self.max_state ** 2)
+
+    def gradient_M_inf(self, other, vectorize=True):
+        inv_covar_diff = la.inv(other.covar - self.covar)
+        param_diff = self.K - other.K
+        matrix = la.multi_dot([param_diff, inv_covar_diff, param_diff])
+        eigvals, eigvecs = la.eigh(matrix)
+        max_eigval = eigvals[-1]
+        max_eigvec = eigvecs[:, -1].ravel()
+        deriv = la.multi_dot([np.outer(max_eigvec, max_eigvec), param_diff.T, inv_covar_diff])
+        gradient = la.det(other.covar) ** (self.dimension/2.) / la.det(self.covar) **(self.dimension/2.) * \
+               np.exp(.5 * max_eigval * self.max_state ** 2) * deriv
+
+        if vectorize:
+            return gradient.ravel()
+        else:
+            return gradient
+
+    def M_2(self, other):
+        covar_diff = 2 * other.covar - self.covar
+        inv_covar_diff = la.inv(covar_diff)
+        param_diff = self.K - other.K
+        matrix = la.multi_dot([param_diff, inv_covar_diff, param_diff])
+        eigvals, _ = la.eigh(matrix)
+        max_eigval = eigvals[-1]
+        return la.det(other.covar) ** self.dimension / la.det(self.covar) ** (self.dimension / 2.) / \
+                la.det(covar_diff) ** (self.dimension / 2.) * \
+               np.exp(.5 * max_eigval * self.max_state ** 2)
+
+    def gradient_M_2(self, other, vectorize=True):
+        covar_diff = 2 * other.covar - self.covar
+        inv_covar_diff = la.inv(covar_diff)
+        param_diff = self.K - other.K
+        matrix = la.multi_dot([param_diff, inv_covar_diff, param_diff])
+        eigvals, eigvecs = la.eigh(matrix)
+        max_eigval = eigvals[-1]
+        max_eigvec = eigvecs[:, -1].ravel()
+        deriv = la.multi_dot([np.outer(max_eigvec, max_eigvec), param_diff.T, inv_covar_diff])
+        gradient =  la.det(other.covar) ** self.dimension / la.det(self.covar) ** (self.dimension / 2.) / \
+                la.det(covar_diff) ** (self.dimension / 2.) * \
+                np.exp(.5 * max_eigval * self.max_state ** 2) * deriv
+
+        if vectorize:
+            return gradient.ravel()
+        else:
+            return gradient
 
 class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
     '''
+    Gaussian Policy with Mean computed as Ks and variance decomposed
+    with Cholesky as Lambda * Lambda.T
     '''
 
     def __init__(self, K, Lambda):
@@ -172,3 +236,106 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
 
     def get_n_parameters(self):
         return self.n_parameters
+
+
+class RBFGaussianPolicy(ParametricPolicy):
+
+    def __init__(self,
+                 centers,
+                 parameters,
+                 sigma,
+                 radial_basis='gaussian',
+                 radial_basis_parameters=None,
+                 max_feature_square=0.07**2+1.8**2):
+
+        self.centers = centers
+        self.n_centers = self.centers.shape[0]
+        self.parameters = parameters.ravel()[:, np.newaxis]
+        self.dimension = 1
+        self.n_parameters = len(self.parameters)
+        self.sigma = sigma
+        self.max_feature_square = max_feature_square
+
+        if radial_basis == 'gaussian':
+            self.radial_basis = lambda x, center: np.exp(-radial_basis_parameters \
+                                                         * la.norm(x - center))
+        else:
+            raise ValueError()
+
+        self.seed()
+
+    def get_dimension(self):
+        return self.dimension
+
+    def get_n_parameters(self):
+        return self.n_parameters
+
+    def set_parameter(self, parameter):
+        self.parameters = parameter.ravel()[:, np.newaxis]
+
+    def _mean(self, state):
+        rbf = [self.radial_basis(state, self.centers[i])
+               for i in range(self.n_centers)]
+        mean = np.dot(self.parameters.ravel(), rbf)
+        return mean
+
+    def draw_action(self, state, done):
+        action = self._mean(state) + self.np_random.randn() * self.sigma
+        return action
+
+    def seed(self, seed=None):
+        self.np_random, seed = seeding.np_random(seed)
+
+    def pdf(self, state, action):
+        return np.array(1. / np.sqrt(2 * np.pi * self.sigma ** 2) * np.exp(
+            - 1. / 2 * (action - self._mean(state)) ** 2 / self.sigma ** 2),
+                        ndmin=1)
+
+    def gradient_log(self, state, action, vectorize=True):
+        rbf = [self.radial_basis(state, self.centers[i])
+                   for i in range(self.n_centers)]
+        mean = np.dot(self.parameters.ravel(), rbf)
+        gradient = (action - mean) / self.sigma ** 2 * np.array(rbf)
+        return gradient.ravel()
+
+    def M_inf(self, other):
+        param_diff = self.parameters - other.parameters
+        return other.sigma / self.sigma * np.exp(param_diff ** 2 * \
+            np.exp(self.radial_basis_parameters * 4 * self.max_feature_square) / \
+                                 (other.sigma ** 2 - self.sigma ** 2))
+
+    def gradient_M_inf(self, other, vectorize=True):
+        param_diff = self.parameters - other.parameters
+        return other.sigma / self.sigma * np.exp(param_diff ** 2 * \
+            np.exp(self.radial_basis_parameters * 4 * self.max_feature_square) / \
+                      (other.sigma ** 2 - self.sigma ** 2)) * 2 * param_diff
+    '''
+    def M_2(self, other):
+        covar_diff = 2 * other.covar - self.covar
+        inv_covar_diff = la.inv(covar_diff)
+        param_diff = self.K - other.K
+        matrix = la.multi_dot([param_diff, inv_covar_diff, param_diff])
+        eigvals, _ = la.eigh(matrix)
+        max_eigval = eigvals[-1]
+        return la.det(other.covar) ** self.dimension / la.det(self.covar) ** (self.dimension / 2.) / \
+                la.det(covar_diff) ** (self.dimension / 2.) * \
+               np.exp(.5 * max_eigval * self.max_state ** 2)
+
+    def gradient_M_2(self, other, vectorize=True):
+        covar_diff = 2 * other.covar - self.covar
+        inv_covar_diff = la.inv(covar_diff)
+        param_diff = self.K - other.K
+        matrix = la.multi_dot([param_diff, inv_covar_diff, param_diff])
+        eigvals, eigvecs = la.eigh(matrix)
+        max_eigval = eigvals[-1]
+        max_eigvec = eigvecs[:, -1].ravel()
+        deriv = la.multi_dot([np.outer(max_eigvec, max_eigvec), param_diff.T, inv_covar_diff])
+        gradient =  la.det(other.covar) ** self.dimension / la.det(self.covar) ** (self.dimension / 2.) / \
+                la.det(covar_diff) ** (self.dimension / 2.) * \
+                np.exp(.5 * max_eigval * self.max_state ** 2) * deriv
+
+        if vectorize:
+            return gradient.ravel()
+        else:
+            return gradient
+    '''

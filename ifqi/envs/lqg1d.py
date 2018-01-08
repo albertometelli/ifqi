@@ -8,7 +8,6 @@ import numpy as np
 
 """
 Linear quadratic gaussian regulator task.
-
 References
 ----------
   - Simone Parisi, Matteo Pirotta, Nicola Smacchia,
@@ -18,7 +17,6 @@ References
   - Jan  Peters  and  Stefan  Schaal,
     Reinforcement  learning of motor  skills  with  policy  gradients,
     Neural  Networks, vol. 21, no. 4, pp. 682-697, 2008.
-
 """
 
 
@@ -49,6 +47,10 @@ class LQG1D(gym.Env):
         self.Q = np.array([0.9]).reshape((1, 1))
         self.R = np.array([0.9]).reshape((1, 1))
 
+        self.max_cost = np.dot(self.max_pos,
+                      np.dot(self.Q, self.max_pos)) + \
+            np.dot(self.max_action, np.dot(self.R, self.max_action))
+
         # gym attributes
         self.viewer = None
         high = np.array([self.max_pos])
@@ -66,16 +68,20 @@ class LQG1D(gym.Env):
         u = np.clip(action, -self.max_action, self.max_action)
         noise = self.np_random.randn() * self.sigma_noise
         xn = np.dot(self.A, self.state) + np.dot(self.B, u) + noise
+        xn = np.clip(xn, -self.max_pos, self.max_pos)
         cost = np.dot(self.state,
                       np.dot(self.Q, self.state)) + \
             np.dot(u, np.dot(self.R, u))
+        assert cost>=0
+
+        normalized_cost = cost / self.max_cost * 2 - 1
 
         self.state = np.array(xn.ravel())
         if self.discrete_reward:
             if abs(self.state[0]) <= 2 and abs(u) <= 2:
                 return self.get_state(), 0, False, {}
             return self.get_state(), -1, False, {}
-        return self.get_state(), -np.asscalar(cost), False, {}
+        return self.get_state(), -np.asscalar(normalized_cost), False, {}
 
     def reset(self, state=None):
         if state is None:
@@ -138,10 +144,8 @@ class LQG1D(gym.Env):
         problem.
         Args:
             K (matrix): the matrix associated to the linear controller K * x
-
         Returns:
             P (matrix): the Riccati Matrix
-
         """
         I = np.eye(self.Q.shape[0], self.Q.shape[1])
         if np.array_equal(self.A, I) and np.array_equal(self.B, I):
@@ -172,10 +176,8 @@ class LQG1D(gym.Env):
         """
         This function computes the optimal linear controller associated to the
         LQG problem (u = K * x).
-
         Returns:
             K (matrix): the optimal controller
-
         """
         P = np.eye(self.Q.shape[0], self.Q.shape[1])
         for i in range(100):
@@ -199,10 +201,8 @@ class LQG1D(gym.Env):
                             the controller action
             n_random_x0: the number of samples to draw in order to average over
                          the initial state
-
         Returns:
             J (float): The discounted reward
-
         """
         if isinstance(K, Number):
             K = np.array([K]).reshape(1, 1)
@@ -234,11 +234,9 @@ class LQG1D(gym.Env):
             the controller action
             n_random_xn: the number of samples to draw in order to average over
             the next state
-
         Returns:
             Qfun (float): The Q-value in the given pair (x,u) under the given
             controller
-
         """
         if isinstance(x, Number):
             x = np.array([x])
