@@ -21,6 +21,7 @@ max_iter = 3
 dataset_path = '../datasets/'
 dataset_label = '10000'
 batch_size = None
+random_start = True
 
 try:
     #Load dataset
@@ -49,7 +50,8 @@ optimizer = HoeffdingOfflineLearner(H_min,
                                     target_policy,
                                     gamma=gamma,
                                     delta=delta,
-                                    batch_size=batch_size)
+                                    batch_size=batch_size,
+                                    random_start=random_start)
 theta,history = optimizer.optimize(learning_rate,
                                    learning_rate_search=learning_rate_search,
                                    return_history=True,

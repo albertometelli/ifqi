@@ -41,7 +41,8 @@ class OfflineLearner(object):
                  target_policy,
                  gamma=0.99,
                  delta=0.01,
-                 batch_size = None):
+                 batch_size = None
+                 random_start = True):
         """
         Constructor
         param H_min: the minimum acceptable horizon for the task to be solved
@@ -66,6 +67,7 @@ class OfflineLearner(object):
         self.trajectory_generator = OfflineTrajectoryGenerator(self.dataset)
         self.N = self.trajectory_generator.n_trajectories
         self.batch_size = batch_size if batch_size is not None else self.N
+        self.random_start = random_start
 
     def optimize(self):
         pass
