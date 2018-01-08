@@ -20,6 +20,7 @@ learning_rate = 1e-4 #fixed or initial learning rate
 max_iter = 3
 dataset_path = '../datasets/'
 dataset_label = '10000'
+batch_size = None
 
 try:
     #Load dataset
@@ -47,7 +48,8 @@ optimizer = HoeffdingOfflineLearner(H_min,
                                     behavioral_policy,
                                     target_policy,
                                     gamma=gamma,
-                                    delta=delta)
+                                    delta=delta,
+                                    batch_size=batch_size)
 theta,history = optimizer.optimize(learning_rate,
                                    learning_rate_search=learning_rate_search,
                                    return_history=True,
