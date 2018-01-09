@@ -8,7 +8,7 @@ import json
 #Settings
 mdp = LQG1D()
 mu_b = -0.2
-sigma_b = 2.0
+sigma_b = 2.
 N = 10000
 behavioral_policy = GaussianPolicyLinearMean(mu_b,sigma_b**2)
 

@@ -1,1 +1,1 @@
-{"env": "LQG1D", "mu_b": -0.2, "sigma_b": 2.0, "N": 10000, "batch_size": 1000, "mu_t": -0.2, "sigma_t": 1.0, "H_min": 3, "select_initial_point": true, "delta": 0.25, "alpha": 1}
+{"env": "LQG1D", "mu_b": -0.2, "sigma_b": 2.0, "N": 10000, "batch_size": 1000, "mu_t": -0.2, "sigma_t": 1.0, "H_min": 5, "select_initial_point": true, "delta": 0.25, "alpha": 1}

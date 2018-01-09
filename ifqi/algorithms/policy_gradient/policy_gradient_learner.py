@@ -108,7 +108,7 @@ class PolicyGradientLearner(object):
         else:
             raise ValueError('Importance weighting method not found.')
 
-        print(bound)
+        if self.verbose: print(bound)
         if bound is None:
             self.bound = DummyBound(self.max_iter_eval,
                                     self.delta,
@@ -458,7 +458,7 @@ class GradientEstimator(object):
         else:
             H_star = sys.maxsize
         H_star = min(int(self.horizon), H_star)
-        print("Hstar %s" % H_star)
+        if self.verbose: print("Hstar %s" % H_star)
 
 
 
@@ -512,7 +512,7 @@ class GradientEstimator(object):
         gradient_estimate = gradient_estimate + self.gamma ** k * penalization_gradient
 
 
-        print("penalization gradient %s" % penalization_gradient)
+        if self.verbose: print("penalization gradient %s" % penalization_gradient)
         return gradient_estimate, np.mean(np.sum(traj_returns, axis=1)), penalization
 
 class ReinforceGradientEstimator(GradientEstimator):
