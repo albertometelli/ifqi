@@ -99,7 +99,7 @@ class SPMI(object):
             alfa_star = 0
             beta_star = 0
             for alfa, beta in [(0, beta0), (alfa0, 0), (alfa1, 1), (1, beta1)]:
-                bound = alfa * p_er_adv + beta * m_er_adv - (gamma / 2 * (1 - gamma)) *\
+                bound = alfa * p_er_adv + beta * m_er_adv - (gamma / (2 * (1 - gamma))) *\
                             ((alfa ** 2) * p_dist_sup * p_dist_mean + gamma * (beta ** 2) * m_dist_sup * m_dist_mean
                              + alfa * beta * p_dist_sup * m_dist_mean + alfa * beta * p_dist_mean * m_dist_sup)
                 # update selection
