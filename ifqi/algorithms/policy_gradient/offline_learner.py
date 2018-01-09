@@ -104,7 +104,7 @@ class OfflineLearner(object):
         while it<=max_iter and H>0:
             #Perform one step of policy gradient optimization
             theta_old = self.target_policy.get_parameter()
-            if verbose: print(it,": H_star =",math.floor(H_star),", theta =",theta_old,", alpha =",alpha)
+            if verbose: print("\n",it,": H_star =",math.floor(H_star),", theta =",theta_old,", alpha =",alpha)
             pg_learner = PolicyGradientLearner(self.trajectory_generator,
                                                self.target_policy,
                                                self.gamma,
@@ -126,7 +126,6 @@ class OfflineLearner(object):
 
             #Check constraint
             if not self.withinConstraint():
-                if verbose: print(theta_new,"is too far!",M_infty,">",self._M_max)
                 #Rollback
                 self.target_policy.set_parameter(theta_old)
                 if learning_rate_search and alpha>min_learning_rate:
@@ -140,7 +139,6 @@ class OfflineLearner(object):
                 #Compute new optimal horizon
                 H_star = self.computeOptimalHorizon(M_infty)
                 H = min(self.H_max,math.floor(H_star))
-                print('%s <= %s' % (M_infty,self._M_max))
                 if H<self.H_min: #This should not happen according to theory
                     print("UNEXPECTED: H*<H_MIN")
                     H = self.H_min
@@ -174,8 +172,11 @@ class HoeffdingOfflineLearner(OfflineLearner):
 
     def withinConstraint(self):
         M_infty = self.target_policy.M_inf(self.behavioral_policy)
-        return M_infty<=self.maxMInfty() + eps
+        condition =  M_infty<=self.maxMInfty() + eps 
+        if not condition:
+            print("too far!",M_infty,">",self.maxMInfty())
 
+        return condition
 
 class ChebyshevOfflineLearner(OfflineLearner):
     def computeOptimalHorizon(self,M_infty):

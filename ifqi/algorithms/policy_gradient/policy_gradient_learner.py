@@ -582,4 +582,3 @@ class GPOMDPGradientEstimator(GradientEstimator):
             return (num / den)[np.newaxis, :, np.newaxis]
 
         return 0.
-

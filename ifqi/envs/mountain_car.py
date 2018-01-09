@@ -1,15 +1,4 @@
-# -*- coding: utf-8 -*-
 """
-@author: Olivier Sigaud
-
-A merge between two sources:
-
-* Adaptation of the MountainCar Environment from the "FAReinforcement" library
-of Jose Antonio Martin H. (version 1.0), adapted by  'Tom Schaul, tom@idsia.ch'
-and then modified by Arnaud de Broissia
-
-* the OpenAI/gym MountainCar environment
-itself from 
 http://incompleteideas.net/sutton/MountainCar/MountainCar1.cp
 permalink: https://perma.cc/6Z2N-PFWC
 """
@@ -20,31 +9,25 @@ from gym import spaces
 from gym.utils import seeding
 import numpy as np
 
-class Continuous_MountainCarEnv(gym.Env):
+class MountainCarEnv(gym.Env):
     metadata = {
         'render.modes': ['human', 'rgb_array'],
         'video.frames_per_second': 30
     }
 
     def __init__(self):
-        self.min_action = -1.0
-        self.max_action = 1.0
         self.min_position = -1.2
         self.max_position = 0.6
         self.max_speed = 0.07
-        self.goal_position = 0.45 # was 0.5 in gym, 0.45 in Arnaud de Broissia's version
-        self.power = 0.0015
+        self.goal_position = 0.5
 
-        self.horizon = 400
-        self.gamma = 0.99
-
-        self.low_state = np.array([self.min_position, -self.max_speed])
-        self.high_state = np.array([self.max_position, self.max_speed])
+        self.low = np.array([self.min_position, -self.max_speed])
+        self.high = np.array([self.max_position, self.max_speed])
 
         self.viewer = None
 
-        self.action_space = spaces.Box(self.min_action, self.max_action, shape = (1,))
-        self.observation_space = spaces.Box(self.low_state, self.high_state)
+        self.action_space = spaces.Discrete(3)
+        self.observation_space = spaces.Box(self.low, self.high)
 
         self._seed()
         self.reset()
@@ -54,35 +37,24 @@ class Continuous_MountainCarEnv(gym.Env):
         return [seed]
 
     def _step(self, action):
+        assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
 
-        position = self.state[0]
-        velocity = self.state[1]
-        force = min(max(action[0], -1.0), 1.0)
-
-        velocity += force*self.power -0.0025 * math.cos(3*position)
-        if (velocity > self.max_speed): velocity = self.max_speed
-        if (velocity < -self.max_speed): velocity = -self.max_speed
+        position, velocity = self.state
+        velocity += (action-1)*0.001 + math.cos(3*position)*(-0.0025)
+        velocity = np.clip(velocity, -self.max_speed, self.max_speed)
         position += velocity
-        if (position > self.max_position): position = self.max_position
-        if (position < self.min_position): position = self.min_position
+        position = np.clip(position, self.min_position, self.max_position)
         if (position==self.min_position and velocity<0): velocity = 0
 
         done = bool(position >= self.goal_position)
+        reward = -1.0
 
-        reward = 0
-        if done:
-            reward = 100.0
-        reward-= math.pow(action[0],2)*0.1
-
-        self.state = np.array([position, velocity])
-        return self.state, reward, done, {}
+        self.state = (position, velocity)
+        return np.array(self.state), reward, done, {}
 
     def _reset(self):
         self.state = np.array([self.np_random.uniform(low=-0.6, high=-0.4), 0])
         return np.array(self.state)
-
-#    def get_state(self):
-#        return self.state
 
     def _height(self, xs):
         return np.sin(3 * xs)*.45+.55
