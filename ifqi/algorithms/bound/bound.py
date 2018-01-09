@@ -6,10 +6,11 @@ from scipy.special import lambertw
 
 class Bound(object):
 
-    def __init__(self, N, delta, gamma, behavioral_policy, target_policy):
+    def __init__(self, N, delta, gamma, behavioral_policy, target_policy, horizon=np.inf):
         self.N = N
         self.delta = delta
         self.gamma = gamma
+        self.horizon = horizon
         self.set_policies(behavioral_policy, target_policy)
 
     def set_policies(self, behavioral_policy, target_policy):
@@ -52,7 +53,7 @@ class HoeffdingBound(Bound):
 class HoeffdingBoundRatioImportanceWeighting(HoeffdingBound):
 
     def penalization(self):
-        bias = - self.gamma ** self.H_star / (1 - self.gamma)
+        bias = - (self.gamma ** self.H_star - self.gamma ** self.horizon) / (1 - self.gamma)
         var = - (1 - self.gamma ** self.H_star) / \
               (1 - self.gamma) * self.M_inf ** self.H_star \
               * np.sqrt(np.log(1. / self.delta) / self.N)
@@ -76,7 +77,8 @@ class HoeffdingBoundRatioImportanceWeighting(HoeffdingBound):
 
 class HoeffdingBoundPerDecisionRatioImportanceWeighting(HoeffdingBound):
     def penalization(self):
-        bias = - self.gamma ** self.H_star / (1 - self.gamma)
+        bias = - (self.gamma ** self.H_star - self.gamma ** self.horizon) / (
+        1 - self.gamma)
         var = - (1 - (self.M_inf * self.gamma) ** self.H_star) / \
               (1 - self.M_inf * self.gamma) \
               * np.sqrt(np.log(1. / self.delta) / self.N)
@@ -109,7 +111,8 @@ class ChebyshevBound(Bound):
 class ChebyshevBoundRatioImportanceWeighting(ChebyshevBound):
 
     def penalization(self):
-        bias = - self.gamma ** self.H_star / (1 - self.gamma)
+        bias = - (self.gamma ** self.H_star - self.gamma ** self.horizon) / (
+        1 - self.gamma)
         var = - (1 - self.gamma ** self.H_star) / \
               (1 - self.gamma) * np.sqrt(self.M_2 ** self.H_star / self.N * (1./self.delta - 1))
         return bias + var
@@ -131,7 +134,21 @@ class ChebyshevBoundRatioImportanceWeighting(ChebyshevBound):
             raise NotImplementedError()
 
 class ChebyshevPerDecisionRatioImportanceWeighting(ChebyshevBound):
-    pass
+    def penalization(self):
+        bias = - (self.gamma ** self.H_star - self.gamma ** self.horizon) / (
+        1 - self.gamma)
+        var_bound = self.M_2 * (1-(self.gamma**2*self.M_2)**self.H_star) / (1-(self.gamma**2*self.M_2)) + \
+            2*self.gamma*self.M_2/(1-self.gamma) * (1-(self.gamma**2*self.M_2)**(self.H_star-1)) / (1-(self.gamma**2*self.M_2)) + \
+            2 * self.gamma**self.H_star * self.M_2 / (1 - self.gamma) * (1 - (self.gamma * self.M_2) ** (self.H_star - 1)) / (1- (self.gamma * self.M_2))
+        var = - (1 - self.gamma ** self.H_star) / \
+              (1 - self.gamma) * np.sqrt(var_bound / self.N * (1./self.delta - 1))
+        return bias + var
+
+    def gradient_penalization(self):
+        raise NotImplementedError()
+
+    def get_optimal_horizon(self, approximated=True):
+        raise NotImplementedError()
 
 class BernsteinBound(Bound):
 
@@ -146,15 +163,16 @@ class BernsteinBound(Bound):
 class BernsteinBoundRatioImportanceWeighting(BernsteinBound):
 
     def penalization(self):
-        bias = - self.gamma ** self.H_star / (1 - self.gamma)
+        bias = - (self.gamma ** self.H_star - self.gamma ** self.horizon) / (
+        1 - self.gamma)
         var = - (1 - self.gamma ** self.H_star) / \
-              (1 - self.gamma) * (2 * self.M_inf ** self.H_star * np.log(1./self.delta) / (2*self.N) +\
+              (1 - self.gamma) * (2 * self.M_inf ** self.H_star * np.log(1./self.delta) / (3*self.N) +\
                         np.sqrt(2 * self.M_2 ** self.H_star * np.log(1./self.delta) / self.N ))
         return bias + var
 
     def gradient_penalization(self):
         return - (1 - self.gamma ** self.H_star) / \
-              (1 - self.gamma) *(2 * self.H_star * self.M_inf ** (self.H_star-1) * np.log(1./self.delta) / (2*self.N) * self.M_inf_gradient+\
+              (1 - self.gamma) *(2 * self.H_star * self.M_inf ** (self.H_star-1) * np.log(1./self.delta) / (3*self.N) * self.M_inf_gradient+\
                         np.sqrt(2 * np.log(1./self.delta) / self.N ) * self.M_2 ** (self.H_star/2. - 1) * self.H_star/2. * self.M_2_gradient)
 
     def get_optimal_horizon(self):
@@ -171,10 +189,10 @@ class BernsteinBoundRatioImportanceWeighting(BernsteinBound):
         '''
         TODO calcolo di h_sup upper bound on H*
         '''
-        h_sup = 20
+        h_sup = self.horizon
 
         H_star = opt.brentq(function_deriv, 1., h_sup)
-        print(H_star)
+
         if math.isinf(H_star):
             return sys.maxsize
         return int(round(H_star))

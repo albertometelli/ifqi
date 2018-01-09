@@ -98,13 +98,13 @@ class PolicyGradientLearner(object):
 
         if importance_weighting_method is None:
             self.is_estimator = DummyImportanceWeighting(
-                self.behavioral_policy, self.target_policy)
+                self.behavioral_policy, self.target_policy, self.state_index, self.action_index)
         elif importance_weighting_method == 'pdis':
             self.is_estimator = PerDecisionRatioImportanceWeighting(
-                self.behavioral_policy, self.target_policy)
+                self.behavioral_policy, self.target_policy, self.state_index, self.action_index)
         elif importance_weighting_method == 'is':
             self.is_estimator = RatioImportanceWeighting(
-                self.behavioral_policy, self.target_policy)
+                self.behavioral_policy, self.target_policy, self.state_index, self.action_index)
         else:
             raise ValueError('Importance weighting method not found.')
 
@@ -121,21 +121,24 @@ class PolicyGradientLearner(object):
                                                              self.delta,
                                                              self.gamma,
                                                              self.behavioral_policy,
-                                                             self.target_policy)
+                                                             self.target_policy,
+                                                             self.horizon)
         elif bound == 'chebyshev':
             self.bound = bound_factory.build_Chebyshev_bound(self.is_estimator,
                                                              self.max_iter_eval,
                                                              self.delta,
                                                              self.gamma,
                                                              self.behavioral_policy,
-                                                             self.target_policy)
+                                                             self.target_policy,
+                                                             self.horizon)
         elif bound == 'bernstein':
             self.bound = bound_factory.build_Bernstein_bound(self.is_estimator,
                                                              self.max_iter_eval,
                                                              self.delta,
                                                              self.gamma,
                                                              self.behavioral_policy,
-                                                             self.target_policy)
+                                                             self.target_policy,
+                                                             self.horizon)
         else:
             raise NotImplementedError()
 
@@ -203,10 +206,10 @@ class PolicyGradientLearner(object):
             print('Bound: %s' % self.bound.__class__)
             print('Trajectory generator: %s' % self.trajectory_generator.__class__)
 
-        gradient, avg_return, penalization = self.estimator.estimate(baseline_type=self.baseline_type)
+        gradient, avg_return, penalization, H_star = self.estimator.estimate(baseline_type=self.baseline_type)
 
         if return_history:
-            history = [[np.copy(theta), avg_return, gradient]]
+            history = [[np.copy(theta), avg_return, gradient, penalization, H_star]]
 
         gradient_norm = la.norm(gradient)
 
@@ -220,9 +223,9 @@ class PolicyGradientLearner(object):
 
             self.target_policy.set_parameter(theta)
             self.estimator.set_target_policy(self.target_policy)
-            gradient, avg_return, penalization  = self.estimator.estimate(baseline_type=self.baseline_type)
+            gradient, avg_return, penalization, H_star  = self.estimator.estimate(baseline_type=self.baseline_type)
             if return_history:
-                history.append([np.copy(theta), avg_return, gradient])
+                history.append([np.copy(theta), avg_return, gradient, penalization, H_star])
 
             gradient_norm = la.norm(gradient)
             ite += 1
@@ -475,7 +478,7 @@ class GradientEstimator(object):
             self.trajectory_generator.set_policy(self.target_policy)
 
             traj = self.trajectory_generator.next()
-            if not self.select_initial_point or len(traj) == H_star:
+            if not self.select_initial_point or len(traj) <= H_star:
                 k = 0
             else:
                 k = np.random.randint(0, len(traj) - H_star)
@@ -513,7 +516,7 @@ class GradientEstimator(object):
 
 
         print("penalization gradient %s" % penalization_gradient)
-        return gradient_estimate, np.mean(np.sum(traj_returns, axis=1)), penalization
+        return gradient_estimate, np.mean(np.sum(traj_returns, axis=1)), penalization, H_star
 
 class ReinforceGradientEstimator(GradientEstimator):
 
