@@ -52,13 +52,12 @@ class OfflineLearner(object):
         self.batch_size = batch_size if batch_size is not None else self.N
         self.select_initial_point = select_initial_point
 
-    def computeOptimalHorizon(self,M_infty):
+    def computeOptimalHorizon(self,M_infty=None,M_2=None):
         raise NotImplementedError
 
-    def maxMInfty(self):
-        f = lambda minf: self.computeOptimalHorizon(minf) - self.H_min
-        return scipy.optimize.fsolve(f,2)
- 
+    def withinConstraint(self):
+        raise NotImplementedError
+
     def optimize(self,
                  initial_learning_rate,
                  learning_rate_search=False,
@@ -95,9 +94,6 @@ class OfflineLearner(object):
             if verbose: print("Cannot optimize beyond",H_star,"steps")
             return (None,[]) if return_history else None
 
-        #Compute M_infty constraint
-        M_max = self.maxMInfty()
-
         #Optimize target policy
         H = min(self.H_max,math.floor(H_star))
         alpha = initial_learning_rate
@@ -128,10 +124,9 @@ class OfflineLearner(object):
                 theta_new = result
             self.target_policy.set_parameter(theta_new)
 
-            #Check M_infty constraint
-            M_infty = self.target_policy.M_inf(self.behavioral_policy)
-            if M_infty>M_max + eps:
-                if verbose: print(theta_new,"is too far!",M_infty,">",M_max)
+            #Check constraint
+            if not self.withinConstraint():
+                if verbose: print(theta_new,"is too far!",M_infty,">",self._M_max)
                 #Rollback
                 self.target_policy.set_parameter(theta_old)
                 if learning_rate_search and alpha>min_learning_rate:
@@ -145,7 +140,7 @@ class OfflineLearner(object):
                 #Compute new optimal horizon
                 H_star = self.computeOptimalHorizon(M_infty)
                 H = min(self.H_max,math.floor(H_star))
-                print('%s <= %s' % (M_infty,M_max))
+                print('%s <= %s' % (M_infty,self._M_max))
                 if H<self.H_min: #This should not happen according to theory
                     print("UNEXPECTED: H*<H_MIN")
                     H = self.H_min
@@ -159,15 +154,30 @@ class OfflineLearner(object):
             return self.target_policy.get_parameter()
 
 
-class HoeffdingOfflineLearner(OfflineLearner): 
-    def computeOptimalHorizon(self,M_infty):
+class HoeffdingOfflineLearner(OfflineLearner):
+    def computeOptimalHorizon(self,M_infty=None,M_2=None):
+        if M_infty is None:
+            raise ValueError('Need M_infty to compute Hoeffding optimal \
+                             horizon')
+
         return 1. / np.log(M_infty) * (np.log((self.gamma * M_infty - 1) /
                                               (np.log(self.gamma * M_infty))) +
                            np.log(np.log(self.gamma) / (self.gamma - 1)) +
                            0.5 * (np.log(2 * self.batch_size) -
                                   np.log(np.log(1. / self.delta))))
 
+    def maxMInfty(self):
+        if not hasattr(self,'_M_max'):
+            f = lambda minf: self.computeOptimalHorizon(M_infty=minf) - self.H_min
+            self._M_max = scipy.optimize.fsolve(f,2)
+        return self._M_max
+
+    def withinConstraint(self):
+        M_infty = self.target_policy.M_inf(self.behavioral_policy)
+        return M_infty<=self.maxMInfty() + eps
 
 
-
+class ChebyshevOfflineLearner(OfflineLearner):
+    def computeOptimalHorizon(self,M_infty):
+        pass
 
