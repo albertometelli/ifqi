@@ -129,6 +129,7 @@ class HoeffdingOfflineLearner(OfflineLearner):
         it = 1
         if verbose: print("Start offline optimization")
         while it<=max_iter and H>0:
+            print('len', len(history))
             #Perform one step of policy gradient optimization
             theta_old = self.target_policy.get_parameter()
             if verbose: print(it,": H_star =",math.floor(H_star),", theta =",theta_old,", alpha =",alpha)
@@ -147,7 +148,6 @@ class HoeffdingOfflineLearner(OfflineLearner):
             result = pg_learner.optimize(theta_old,return_history)
             if return_history:
                 theta_new = result[0]
-                history = history + result[1]
             else:
                 theta_new = result
             self.target_policy.set_parameter(theta_new)
@@ -158,7 +158,6 @@ class HoeffdingOfflineLearner(OfflineLearner):
                 if verbose: print(theta_new,"is too far!",M_infty,">",M_max)
                 #Rollback
                 self.target_policy.set_parameter(theta_old)
-                history = history[:-1]
                 if learning_rate_search and alpha>min_learning_rate:
                     alpha/=2
                     continue
@@ -166,6 +165,7 @@ class HoeffdingOfflineLearner(OfflineLearner):
                     if verbose: print("Boundary reached")
                     break
             else:
+                if return_history: history.append(result[1][1])
                 #Compute new optimal horizon
                 H_star = computeOptimalHorizon(
                     M_infty, self.gamma, self.batch_size, self.delta)
