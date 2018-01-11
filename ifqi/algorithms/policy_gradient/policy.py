@@ -173,13 +173,14 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
     with Cholesky as Lambda * Lambda.T
     '''
 
-    def __init__(self, K, Lambda):
+    def __init__(self, K, Lambda, max_state=4.0):
         self.K = np.array(K, ndmin=2)
         self.Lambda = np.array(Lambda, ndmin=2)
         self.dimension = self.K.shape[0]
         self.n_parameters = self.K.shape[0] ** 2 + (self.Lambda.shape[0] ** 2 + self.Lambda.shape[0]) / 2
         self.covar = np.dot(self.Lambda, self.Lambda.T)
         self.inv_covar = la.inv(self.covar)
+        self.max_state = max_state
         self.seed()
 
     def _mean(self, state):
@@ -224,7 +225,7 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
         state = np.array(state, ndmin=1)[:, np.newaxis]
         diff = action - self._mean(state)
         grad_K = la.multi_dot([self.inv_covar, diff, state.T])
-        grad_Lambda = -2 * self.dim * np.dot(self.inv_covar, self.Lambda) + 2 * \
+        grad_Lambda = -2 * self.dimension * np.dot(self.inv_covar, self.Lambda) + 2 * \
                 la.multi_dot([self.inv_covar, diff, diff.T, self.inv_covar, self.Lambda])
 
         if vectorize:
@@ -298,14 +299,17 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
         max_eigval = eigvals[-1]
         max_eigvec = eigvecs[:, -1].ravel()
         deriv = la.multi_dot([np.outer(max_eigvec, max_eigvec), param_diff.T, inv_covar_diff])
-        gradient =  la.det(other.covar) ** self.dimension / la.det(self.covar) ** (self.dimension / 2.) / \
+        gradient_K =  la.det(other.covar) ** self.dimension / la.det(self.covar) ** (self.dimension / 2.) / \
                 la.det(covar_diff) ** (self.dimension / 2.) * \
                 np.exp(.5 * max_eigval * self.max_state ** 2) * deriv
+        gradient_Lambda = -other.covar / (self.covar * np.sqrt(2*other.covar - self.covar)) + other.covar / (2*other.covar - self.covar)**(3./2) + 2 * (.5 * max_eigval * self.max_state ** 2) * other.covar / (2*other.covar - self.covar)**(5./2)
+        gradient_Lambda *= np.exp(.5 * max_eigval * self.max_state ** 2)
 
-        if vectorize:
-            return gradient.ravel()
-        else:
-            return gradient
+        '''
+        ONLY 1 DIMENSION!!!
+        '''
+
+        return np.array([np.asscalar(gradient_K), np.asscalar(gradient_Lambda)])
 
 
 class RBFGaussianPolicy(ParametricPolicy):

@@ -1,6 +1,6 @@
 from ifqi.envs.lqg1d import LQG1D
 from ifqi.algorithms.policy_gradient.policy import GaussianPolicyLinearMean, \
-    DeterministicPolicyLinearMean
+    DeterministicPolicyLinearMean, GaussianPolicyLinearMeanCholeskyVar
 from ifqi.evaluation.evaluation import collect_episodes
 from ifqi.evaluation.trajectory_generator import OnlineTrajectoryGenerator, \
     OfflineTrajectoryGenerator
@@ -20,8 +20,8 @@ mut = -0.2
 
 # Instantiate policies
 optimal_policy = DeterministicPolicyLinearMean(K_opt)
-behavioral_policy = GaussianPolicyLinearMean(mub, sb ** 2)
-target_policy = GaussianPolicyLinearMean(mut, st ** 2)
+behavioral_policy = GaussianPolicyLinearMeanCholeskyVar(mub, sb)
+target_policy = GaussianPolicyLinearMeanCholeskyVar(mut, st)
 
 
 N = 1000
@@ -61,8 +61,23 @@ for i in range(online_iterations):
     target_policy.set_parameter(optimal_parameter)
 
 fig, ax = plt.subplots()
-ax.plot(np.array(history)[:, 0], 'r', label='Offline')
-ax.scatter(range(0,offline_iterations*online_iterations,online_iterations), np.array(np.vstack(history))[range(0,offline_iterations*online_iterations,online_iterations), 0], marker='o')
+ax.plot(np.vstack(np.array(history)[:, 0])[:,0], 'r', label='Offline')
+ax.scatter(range(0,offline_iterations*online_iterations,online_iterations), np.vstack(np.array(history)[:, 0])[:,0][range(0,offline_iterations*online_iterations,online_iterations)], marker='o')
 ax.set_xlabel('Iteration')
 ax.set_ylabel('Parameter')
 legend = ax.legend(loc='upper right')
+
+fig, ax = plt.subplots()
+ax.plot(np.vstack(np.array(history)[:, 0])[:,1], 'b', label='Offline')
+ax.scatter(range(0,offline_iterations*online_iterations,online_iterations), np.vstack(np.array(history)[:, 0])[:,1][range(0,offline_iterations*online_iterations,online_iterations)], marker='o')
+ax.set_xlabel('Iteration')
+ax.set_ylabel('Std')
+legend = ax.legend(loc='upper right')
+
+fig, ax = plt.subplots()
+ax.plot(np.array(history)[:, 1], 'g', label='Offline')
+ax.scatter(range(0,offline_iterations*online_iterations,online_iterations), np.array(history)[:, 1][range(0,offline_iterations*online_iterations,online_iterations)], marker='o')
+ax.set_xlabel('Iteration')
+ax.set_ylabel('Avg return')
+legend = ax.legend(loc='upper right')
+

@@ -13,14 +13,15 @@ mdp = LQG1D()
 K_opt = mdp.computeOptimalK()
 
 sb = 2.
-st = 1.
+st = 1.99
 mub = -0.2
 mut = 0.
-N = 1000
+N = 36
 
 K_grid = np.arange(-0.7, 0.1, 0.1)
-#c_grid = np.arange(0., 1.1, 0.1)
-c_grid = np.array([1.])
+#K_grid = np.array([-0.2])
+c_grid = np.arange(0., 1.1, 0.1)
+#c_grid = np.array([1.])
 
 K, C = np.meshgrid(K_grid, c_grid)
 
@@ -37,8 +38,8 @@ for i in range(100):
 J_opt = np.mean(J_opt)
 
 #Collect trajectories
-#trajectories = collect_episodes(mdp, behavioral_policy, n_episodes=N)
-trajectories = np.load('../datasets/dataset_1000.npy')
+trajectories = collect_episodes(mdp, behavioral_policy, n_episodes=N)
+#trajectories = np.load('../datasets/dataset_1000.npy')
 dataset = []
 
 stop = np.where(trajectories[:, -1] == 1)[0] + 1
@@ -53,6 +54,7 @@ def estimate(dataset, behavioral_policy, target_policy, gamma, h, k, c):
         traj = dataset[i][k:k+h]
         horizon = len(traj)
         w = is_estimator.weight(traj)
+
         traj_return = traj[:, 2] * gamma ** np.arange(horizon)
         eval.append(np.dot(w, traj_return))
     return np.mean(eval)
@@ -98,7 +100,7 @@ for i in range(K.shape[0]):
         J = estimate(dataset, behavioral_policy, target_policy, mdp.gamma, h, 0, c)
         bias_ = bias(dataset, behavioral_policy, target_policy, mdp.gamma, h, 0, c)
 
-        print('Parameter = %s \t Shrinkage = %s \t Bias = %s\t J_hat = %s' % (k, c, bias_, J))
+
 
         var_hoeff = variance_Hoeffding(dataset,
                            behavioral_policy,
@@ -118,6 +120,10 @@ for i in range(K.shape[0]):
         bound_Hoeffding[i, j] = J + bias_ + var_hoeff
         bound_Chebychev[i, j] = J + bias_ + var_cheb
         bound_Bernstain[i, j] = J + bias_ + var_bern
+
+        print(
+        'Parameter = %s \t Shrinkage = %s \t Bias = %s\t J_hat = %s \t bound = %s' % (
+        k, c, bias_, J,  bound_Chebychev[i, j]))
 '''
 fig = plt.figure()
 ax = fig.gca(projection='3d')
@@ -129,7 +135,7 @@ ax.set_xlabel('parameter')
 ax.set_ylabel('shrinkage')
 ax.set_zlabel('bound')
 ax.set_title('Hoeffding')
-
+'''
 
 fig = plt.figure()
 ax = fig.gca(projection='3d')
@@ -142,7 +148,7 @@ ax.set_ylabel('shrinkage')
 ax.set_zlabel('bound')
 ax.set_title('Chebychev')
 
-
+'''
 fig = plt.figure()
 ax = fig.gca(projection='3d')
 surf = ax.plot_surface(K, C , bound_Bernstain, cmap=cm.coolwarm,
@@ -153,7 +159,7 @@ ax.set_xlabel('parameter')
 ax.set_ylabel('shrinkage')
 ax.set_zlabel('bound')
 ax.set_title('Bernstein')
-'''
+
 
 
 
@@ -184,3 +190,4 @@ ax.set_xlabel('parameter')
 ax.set_ylabel('bound')
 ax.set_title('Bernstain')
 ax.set_ylim([-2000,0])
+'''

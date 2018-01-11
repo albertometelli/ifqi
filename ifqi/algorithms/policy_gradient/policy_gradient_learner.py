@@ -226,7 +226,8 @@ class PolicyGradientLearner(object):
         while ite < self.max_iter_opt and gradient_norm > self.tol_opt:
 
             theta = self.gradient_updater.update(gradient) #Gradient ascent update
-            print(theta)
+            if self.verbose >= 1:
+                print(theta)
 
             self.target_policy.set_parameter(theta)
             self.estimator.set_target_policy(self.target_policy)
@@ -521,6 +522,7 @@ class GradientEstimator(object):
         gradient_estimate = np.mean(np.sum(traj_log_gradients * \
                                 ws[:, :, np.newaxis] * \
                                 (traj_returns[:, :, np.newaxis] - baseline), axis=1), axis=0)
+        print("gradient estimate %s" % gradient_estimate)
         gradient_estimate = gradient_estimate + self.gamma ** k * penalization_gradient
 
 
