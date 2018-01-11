@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 mdp = Continuous_MountainCarEnv()
 N = 1000
 iterations = 50
-batch_size = 300
+batch_size = 100
 
 def features(state):
     position, speed = state[0], state[1]
@@ -122,6 +122,25 @@ offline_gpomdp = PolicyGradientLearner(offline_trajectory_generator,
 
 _, history_offline = offline_gpomdp.optimize(behavioral_policy_parameters, return_history=True)
 
+ffline_gpomdp = PolicyGradientLearner(offline_trajectory_generator,
+                                  target_policy,
+                                  mdp.gamma,
+                                  mdp.horizon,
+                                  select_initial_point=True,
+                                  behavioral_policy=behavioral_policy,
+                                  importance_weighting_method='is',
+                                  learning_rate=0.01,
+                                  estimator='gpomdp',
+                                  gradient_updater='adam',
+                                  max_iter_opt=iterations,
+                                  max_iter_eval=batch_size,
+                                  verbose=1,
+                                  state_index=[0,1],
+                                  action_index=2,
+                                  reward_index=3)
+
+_, history_offline_2 = offline_gpomdp.optimize(behavioral_policy_parameters, return_history=True)
+'''
 
 offline_gpomdp_cheb = PolicyGradientLearner(offline_trajectory_generator,
                                   target_policy,
@@ -185,3 +204,6 @@ offline_gpomdp_bern = PolicyGradientLearner(offline_trajectory_generator,
                                   reward_index=3)
 
 _, history_offline_bern = offline_gpomdp_bern.optimize(behavioral_policy_parameters, return_history=True)
+
+
+'''

@@ -36,7 +36,13 @@ dataset = collect_episodes(mdp, behavioral_policy, n_episodes=N)
 offline_trajectory_generator = OfflineTrajectoryGenerator(dataset)
 online_trajectory_generator = OnlineTrajectoryGenerator(mdp, target_policy)
 
-offline_reinforce_cheb = PolicyGradientLearner(offline_trajectory_generator,
+
+N = 500
+for i in range(online_iterations):
+    dataset = collect_episodes(mdp, behavioral_policy, n_episodes=N)
+    offline_trajectory_generator = OfflineTrajectoryGenerator(dataset)
+
+    offline_reinforce_cheb = PolicyGradientLearner(offline_trajectory_generator,
                                   target_policy,
                                   mdp.gamma,
                                   mdp.horizon,
@@ -126,6 +132,8 @@ ax.set_xlabel('Iteration')
 ax.set_ylabel('J(K:H)')
 legend = ax.legend(loc='lower right')
 
+
+#NO solo se k=0
 fig, ax = plt.subplots()
 ax.plot(np.array(history_offline_reinforce_hoeff)[:, 1] + np.array(history_offline_reinforce_hoeff)[:, 3] ,  'r', label='Offline Hoeffding')
 ax.plot(np.array(history_offline_reinforce_cheb)[:, 1] + np.array(history_offline_reinforce_cheb)[:, 3], 'g', label='Offline Chebyshev')

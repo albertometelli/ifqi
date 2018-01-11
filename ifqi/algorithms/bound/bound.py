@@ -4,13 +4,26 @@ import math
 import scipy.optimize as opt
 from scipy.special import lambertw
 
+def variance_pdis_bound(M_2, H, gamma):
+    return M_2 * (1 - (gamma ** 2 * M_2) ** H) / (1 - (gamma ** 2 * M_2)) + \
+                2 * gamma * M_2 / (1 - gamma) * (1 - (gamma ** 2 * M_2) ** (H - 1)) / (1 - (gamma ** 2 * M_2)) + \
+                2 * gamma ** H * M_2 / (1 - gamma) * (1 - (gamma * M_2) ** (H - 1)) / (1 - (gamma * M_2))
+
+def derivative_variance_pdis_bound(M_2, H, gamma):
+    return variance_pdis_bound(M_2, H, gamma) / M_2 + M_2 * \
+             ((-gamma**(2*H)*H*M_2**(H-1)*(1-gamma**2*M_2) + (1-(gamma**2*M_2)**H)*gamma**2)/(1-gamma**2*M_2)**2 + \
+              2*gamma/(1-gamma)*(-gamma**(2*H-2)*(H-1)*M_2**(H-2)*(1-gamma**2*M_2) + (1-(gamma**2*M_2)**(H-1))*gamma**2)/(1-gamma**2*M_2)**2-\
+              2*gamma**H/(1-gamma)*(gamma**(H-1)*(H-1)*M_2**(H-2)*(1-gamma*M_2) + (1-(gamma*M_2)**(H-1))*gamma)/(1-gamma*M_2)**2)
+
+
 class Bound(object):
 
-    def __init__(self, N, delta, gamma, behavioral_policy, target_policy, horizon=np.inf):
+    def __init__(self, N, delta, gamma, behavioral_policy, target_policy, horizon=np.inf, select_optimal_horizon=False):
         self.N = N
         self.delta = delta
         self.gamma = gamma
         self.horizon = horizon
+        self.select_optimal_horizon = select_optimal_horizon
         self.set_policies(behavioral_policy, target_policy)
 
     def set_policies(self, behavioral_policy, target_policy):
@@ -31,7 +44,7 @@ class DummyBound(Bound):
 
     def set_policies(self, behavioral_policy, target_policy):
         super(DummyBound, self).set_policies(behavioral_policy, target_policy)
-        self.H_star = self.get_optimal_horizon()
+        self.H_star = self.horizon
 
     def penalization(self):
         return 0.
@@ -48,7 +61,10 @@ class HoeffdingBound(Bound):
         super(HoeffdingBound, self).set_policies(behavioral_policy, target_policy)
         self.M_inf = self.target_policy.M_inf(self.behavioral_policy)
         self.M_inf_gradient = self.target_policy.gradient_M_inf(self.behavioral_policy)
-        self.H_star = self.get_optimal_horizon()
+        if self.select_optimal_horizon:
+            self.H_star = self.get_optimal_horizon()
+        else:
+            self.H_star = self.horizon
 
 class HoeffdingBoundRatioImportanceWeighting(HoeffdingBound):
 
@@ -106,7 +122,10 @@ class ChebyshevBound(Bound):
         super(ChebyshevBound, self).set_policies(behavioral_policy, target_policy)
         self.M_2 = self.target_policy.M_2(self.behavioral_policy)
         self.M_2_gradient = self.target_policy.gradient_M_2(self.behavioral_policy)
-        self.H_star = self.get_optimal_horizon()
+        if self.select_optimal_horizon:
+            self.H_star = self.get_optimal_horizon()
+        else:
+            self.H_star = self.horizon
 
 class ChebyshevBoundRatioImportanceWeighting(ChebyshevBound):
 
@@ -137,18 +156,32 @@ class ChebyshevPerDecisionRatioImportanceWeighting(ChebyshevBound):
     def penalization(self):
         bias = - (self.gamma ** self.H_star - self.gamma ** self.horizon) / (
         1 - self.gamma)
-        var_bound = self.M_2 * (1-(self.gamma**2*self.M_2)**self.H_star) / (1-(self.gamma**2*self.M_2)) + \
-            2*self.gamma*self.M_2/(1-self.gamma) * (1-(self.gamma**2*self.M_2)**(self.H_star-1)) / (1-(self.gamma**2*self.M_2)) + \
-            2 * self.gamma**self.H_star * self.M_2 / (1 - self.gamma) * (1 - (self.gamma * self.M_2) ** (self.H_star - 1)) / (1- (self.gamma * self.M_2))
+        var_bound = variance_pdis_bound(self.M_2, self.H_star, self.gamma)
         var = - (1 - self.gamma ** self.H_star) / \
               (1 - self.gamma) * np.sqrt(var_bound / self.N * (1./self.delta - 1))
         return bias + var
 
     def gradient_penalization(self):
-        raise NotImplementedError()
+        var_bound = variance_pdis_bound(self.M_2, self.H_star, self.gamma)
+        derivative_var_bound = derivative_variance_pdis_bound(self.M_2, self.H_star, self.gamma)
+        return 1./np.sqrt(1./self.delta - 1) * 1./(2*np.sqrt(var_bound)) * derivative_var_bound
 
     def get_optimal_horizon(self, approximated=True):
-        raise NotImplementedError()
+
+        def function(h):
+            bias = - (self.gamma ** h - self.gamma ** self.horizon) / (
+                       1 - self.gamma)
+            var_bound = variance_pdis_bound(self.M_2, h, self.gamma)
+            var = - (1 - self.gamma ** h) / \
+                  (1 - self.gamma) * np.sqrt(var_bound / self.N * (1. / self.delta - 1))
+            return bias + var
+
+        H_star = opt.minimize(function, 1.)
+        '''
+        Da controllare
+        '''
+        return H_star
+
 
 class BernsteinBound(Bound):
 
@@ -158,7 +191,10 @@ class BernsteinBound(Bound):
         self.M_2_gradient = self.target_policy.gradient_M_2(self.behavioral_policy)
         self.M_inf = self.target_policy.M_inf(self.behavioral_policy)
         self.M_inf_gradient = self.target_policy.gradient_M_inf(self.behavioral_policy)
-        self.H_star = self.get_optimal_horizon()
+        if self.select_optimal_horizon:
+            self.H_star = self.get_optimal_horizon()
+        else:
+            self.H_star = self.horizon
 
 class BernsteinBoundRatioImportanceWeighting(BernsteinBound):
 

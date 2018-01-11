@@ -52,3 +52,29 @@ class PerDecisionRatioImportanceWeighting(ImportanceWeighting):
                                         trajectory[i, self.action_index])
 
         return w
+
+class RatioShrinkedImportanceWeighting(ImportanceWeighting):
+
+    def __init__(self,
+                 behavioral_policy,
+                 target_policy=None,
+                 shrinkage=1.,
+                 state_index=0,
+                 action_index=1):
+        self.shrinkage = shrinkage
+        super(RatioShrinkedImportanceWeighting, self).__init__(behavioral_policy,
+                                                       target_policy,
+                                                       state_index,
+                                                       action_index)
+
+    def weight(self, trajectory):
+        w = 1.
+        for i in range(len(trajectory)):
+
+            w *= self.target_policy.pdf(trajectory[i, self.state_index], \
+                        trajectory[i, self.action_index]) / \
+                  self.behavioral_policy.pdf(trajectory[i, self.state_index], \
+                        trajectory[i, self.action_index])
+
+        w = 1. + self.shrinkage * (w - 1.)
+        return np.repeat(w, len(trajectory))

@@ -28,6 +28,7 @@ class PolicyGradientLearner(object):
                  behavioral_policy=None,
                  importance_weighting_method=None,
                  select_initial_point=None,
+                 select_optimal_horizon=False,
                  max_iter_eval=100,
                  tol_eval=-1.,
                  max_iter_opt=100,
@@ -91,6 +92,7 @@ class PolicyGradientLearner(object):
         self.baseline_type = baseline_type
         self.delta = delta
         self.select_initial_point = select_initial_point
+        self.select_optimal_horizon = select_optimal_horizon
 
         if importance_weighting_method is not None and behavioral_policy is None:
             raise ValueError('If you want to use importance weighting you must \
@@ -114,7 +116,9 @@ class PolicyGradientLearner(object):
                                     self.delta,
                                     self.gamma,
                                     self.behavioral_policy,
-                                    self.target_policy)
+                                    self.target_policy,
+                                    self.horizon,
+                                    self.select_optimal_horizon)
         elif bound == 'hoeffding':
             self.bound = bound_factory.build_Hoeffding_bound(self.is_estimator,
                                                              self.max_iter_eval,
@@ -122,7 +126,8 @@ class PolicyGradientLearner(object):
                                                              self.gamma,
                                                              self.behavioral_policy,
                                                              self.target_policy,
-                                                             self.horizon)
+                                                             self.horizon,
+                                                             self.select_optimal_horizon)
         elif bound == 'chebyshev':
             self.bound = bound_factory.build_Chebyshev_bound(self.is_estimator,
                                                              self.max_iter_eval,
@@ -130,7 +135,8 @@ class PolicyGradientLearner(object):
                                                              self.gamma,
                                                              self.behavioral_policy,
                                                              self.target_policy,
-                                                             self.horizon)
+                                                             self.horizon,
+                                                             self.select_optimal_horizon)
         elif bound == 'bernstein':
             self.bound = bound_factory.build_Bernstein_bound(self.is_estimator,
                                                              self.max_iter_eval,
@@ -138,7 +144,8 @@ class PolicyGradientLearner(object):
                                                              self.gamma,
                                                              self.behavioral_policy,
                                                              self.target_policy,
-                                                             self.horizon)
+                                                             self.horizon,
+                                                             self.select_optimal_horizon)
         else:
             raise NotImplementedError()
 
@@ -454,14 +461,16 @@ class GradientEstimator(object):
         if self.bound is not None:
             self.bound.set_policies(self.behavioral_policy, self.target_policy)
             H_star = self.bound.H_star
-            if isinstance(self.bound, ChebyshevBound):
-                print("M 2 %s" % self.bound.M_2)
-            elif isinstance(self.bound, HoeffdingBound):
-                print("M inf %s" % self.bound.M_inf)
+            if self.verbose:
+                if isinstance(self.bound, ChebyshevBound):
+                    print("M 2 %s" % self.bound.M_2)
+                elif isinstance(self.bound, HoeffdingBound):
+                    print("M inf %s" % self.bound.M_inf)
         else:
             H_star = sys.maxsize
         H_star = min(int(self.horizon), H_star)
-        print("Hstar %s" % H_star)
+        if self.verbose:
+            print("Hstar %s" % H_star)
 
 
 
@@ -515,7 +524,8 @@ class GradientEstimator(object):
         gradient_estimate = gradient_estimate + self.gamma ** k * penalization_gradient
 
 
-        print("penalization gradient %s" % penalization_gradient)
+        if self.verbose:
+            print("penalization gradient %s" % penalization_gradient)
         return gradient_estimate, np.mean(np.sum(traj_returns, axis=1)), penalization, H_star
 
 class ReinforceGradientEstimator(GradientEstimator):

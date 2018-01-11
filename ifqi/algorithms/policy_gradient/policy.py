@@ -238,6 +238,75 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
     def get_n_parameters(self):
         return self.n_parameters
 
+    def D_inf(self, other, state):
+        state = np.array(state, ndmin=1)
+        inv_covar_diff = la.inv(other.covar - self.covar)
+        mean_diff = np.dot(other.K - self.K, state)
+        return la.det(other.covar) ** (self.dimension/2.) / la.det(self.covar) ** (self.dimension/2.) * \
+               np.exp(.5 * la.multi_dot([mean_diff, inv_covar_diff, mean_diff]))
+
+    def M_inf(self, other):
+        inv_covar_diff = la.inv(other.covar - self.covar)
+        param_diff = self.K - other.K
+        matrix = la.multi_dot([param_diff.T, inv_covar_diff, param_diff])
+        eigvals, _ = la.eigh(matrix)
+        max_eigval = eigvals[-1]
+        return la.det(other.covar) ** (self.dimension/2.) / la.det(self.covar) ** (self.dimension/2.) * \
+               np.exp(.5 * max_eigval * self.max_state ** 2)
+
+    def gradient_M_inf(self, other, vectorize=True):
+        inv_covar_diff = la.inv(other.covar - self.covar)
+        param_diff = self.K - other.K
+        matrix = la.multi_dot([param_diff.T, inv_covar_diff, param_diff])
+        eigvals, eigvecs = la.eigh(matrix)
+        max_eigval = eigvals[-1]
+        max_eigvec = eigvecs[:, -1].ravel()
+        deriv = la.multi_dot([np.outer(max_eigvec, max_eigvec), param_diff.T, inv_covar_diff])
+        gradient_K = la.det(other.covar) ** (self.dimension/2.) / la.det(self.covar) **(self.dimension/2.) * \
+               np.exp(.5 * max_eigval * self.max_state ** 2) * deriv
+        gradient_Lambda = -self.dimension * la.det(other.covar) ** (self.dimension/2.) / la.det(self.Lambda) ** self.dimension * \
+                          la.inv(self.Lambda).T * np.exp(.5 * max_eigval * self.max_state ** 2) + \
+                          - 2 * la.det(other.covar) ** (self.dimension / 2.) / la.det(self.covar) ** (self.dimension / 2.) * \
+                          np.exp(.5 * max_eigval * self.max_state ** 2) * inv_covar_diff.T * self.Lambda.T * np.outer(param_diff, param_diff) * self.max_state ** 2 * inv_covar_diff.T
+
+        '''
+        Da controllare
+        '''
+
+        if vectorize:
+            return gradient.ravel()
+        else:
+            return gradient_K, gradient_Lambda
+
+    def M_2(self, other):
+        covar_diff = 2 * other.covar - self.covar
+        inv_covar_diff = la.inv(covar_diff)
+        param_diff = self.K - other.K
+        matrix = la.multi_dot([param_diff.T, inv_covar_diff, param_diff])
+        eigvals, _ = la.eigh(matrix)
+        max_eigval = eigvals[-1]
+        return la.det(other.covar) ** self.dimension / la.det(self.covar) ** (self.dimension / 2.) / \
+                la.det(covar_diff) ** (self.dimension / 2.) * \
+               np.exp(.5 * max_eigval * self.max_state ** 2)
+
+    def gradient_M_2(self, other, vectorize=True):
+        covar_diff = 2 * other.covar - self.covar
+        inv_covar_diff = la.inv(covar_diff)
+        param_diff = self.K - other.K
+        matrix = la.multi_dot([param_diff.T, inv_covar_diff, param_diff])
+        eigvals, eigvecs = la.eigh(matrix)
+        max_eigval = eigvals[-1]
+        max_eigvec = eigvecs[:, -1].ravel()
+        deriv = la.multi_dot([np.outer(max_eigvec, max_eigvec), param_diff.T, inv_covar_diff])
+        gradient =  la.det(other.covar) ** self.dimension / la.det(self.covar) ** (self.dimension / 2.) / \
+                la.det(covar_diff) ** (self.dimension / 2.) * \
+                np.exp(.5 * max_eigval * self.max_state ** 2) * deriv
+
+        if vectorize:
+            return gradient.ravel()
+        else:
+            return gradient
+
 
 class RBFGaussianPolicy(ParametricPolicy):
 
