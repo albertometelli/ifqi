@@ -10,9 +10,9 @@ import json
 #Settings
 mu_t = -0.2
 sigma_t = 1.
-H_min = 3
+H_min = 5
 H_max = 20
-target_policy = GaussianPolicyLinearMean(mu_t,sigma_t**2)
+target_policy = GaussianPolicyLinearMean(mu_t,sigma_t**2,max_state=4)
 gamma = .99
 delta = .25
 learning_rate_search = True
@@ -30,7 +30,7 @@ try:
         info = json.load(fp)
     mu_b = info['mu_b']
     sigma_b = info['sigma_b']
-    behavioral_policy = GaussianPolicyLinearMean(mu_b,sigma_b**2)
+    behavioral_policy = GaussianPolicyLinearMean(mu_b,sigma_b**2,max_state=4)
     N = info['N']
 except:
     #Generate dataset
