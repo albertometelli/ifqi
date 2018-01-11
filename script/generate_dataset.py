@@ -8,7 +8,7 @@ import json
 #Settings
 mdp = LQG1D()
 mu_b = -0.2
-sigma_b = 2.
+sigma_b = 1.
 N = 10000
 behavioral_policy = GaussianPolicyLinearMean(mu_b,sigma_b**2)
 
@@ -19,7 +19,7 @@ dataset = collect_episodes(mdp,behavioral_policy,n_episodes=N)
 #Save dataset and info
 print("Saving...")
 dataset_path = '../datasets/'
-dataset_label = str(N) #= time.strftime("%d-%m-%Y_%H-%M-%S")
+dataset_label = str(N) + '_' + str(sigma_b)#= time.strftime("%d-%m-%Y_%H-%M-%S")
 np.save(dataset_path + 'dataset_' + dataset_label, dataset)
 info = {'env' : 'LQG1D', 'mu_b' : mu_b, 'sigma_b' : sigma_b, 'N' : N}
 with open(dataset_path + 'info_' + dataset_label + '.txt', 'w') as fp:
