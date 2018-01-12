@@ -21,7 +21,7 @@ policy_chooser = GreedyPolicyChooser(mdp.nS, mdp.nA)
 model_chooser = SetModelChooser(model_set, mdp.nS, mdp.nA)
 
 eps = 0.0
-spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=50000, use_target_trick=True, delta_q=1)
+spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=100000, use_target_trick=True, delta_q=1)
 
 
 #-------------------------------------------------------------------------------

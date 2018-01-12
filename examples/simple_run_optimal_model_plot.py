@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from spmi.envs.race_track_configurable import RaceTrackConfigurableEnv
-from spmi.algorithms.optimal_model_finder import OptimalModelFinder
+from spmi.algorithms.optimal_model_finder_2 import OptimalModelFinder
 
 
 path_name = "/Users/mirco/Desktop/Simulazioni/ModelPlot"
@@ -17,7 +17,7 @@ plt.figure()
 k = 0.5
 rew = [0.9, -0.1, 0, 0, 0.05]
 grid_step = 0.01
-threshold = 0.001
+threshold = 0.00001
 
 mdp = RaceTrackConfigurableEnv(track_file='track0', initial_configuration=k)
 print('nS: {0}'.format(mdp.nS))

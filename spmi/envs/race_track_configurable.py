@@ -9,7 +9,7 @@ from gym import spaces, utils
 
 
 class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
-    def __init__(self, track_file, initial_configuration, reward_weight=None):
+    def __init__(self, track_file, initial_configuration=None, reward_weight=None):
 
         """
         The Race Track Configurable environment:
@@ -29,8 +29,8 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         # number of valid (x,y) tuple
         self.nlin = nlin = lin.shape[0]
 
-        self.horizon = 50
-        self.gamma = 0.95
+        self.horizon = 20
+        self.gamma = 0.9
 
         # nA ---
         self.nA = nA = 5  # 0=KEEP, 1=INCx, 2=INCy, 3=DECx, 4=DECy
@@ -60,11 +60,11 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
 
         self.max_psucc = max_psucc = 0.9
         self.max_psucc2 = max_psucc2 = 0.9
-        self.min_psucc = min_psucc = 0.1
+        self.min_psucc = min_psucc = 0.797
         self.min_psucc2 = min_psucc2 = 0.1
         self.max_speed = max_speed = 2 * (max(vel) ** 2)
 
-        # P1 and P2 are two extreme models that we aim to combine optimally
+        # P1 (high speed) and P2 (low speed) are two extreme models that we aim to combine optimally
         self.P1 = {s: {a: [] for a in range(nA)} for s in range(nS)}
         self.P2 = {s: {a: [] for a in range(nA)} for s in range(nS)}
 
@@ -204,8 +204,8 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                             ntype = track[nx, ny]
                             reward = rstate(nx, ny, nvx, nvy, reward_weight)
                             done = (ntype == '2')
-                            psucc1 = min_psucc + ((max_psucc - min_psucc) / max_speed) * speed
-                            psucc2 = max_psucc2 - ((max_psucc2 - min_psucc2) / max_speed) * speed
+                            psucc1 = min_psuc + ((max_psuc - min_psuc) / max_speed) * speed
+                            psucc2 = max_psuc2 - ((max_psuc2 - min_psuc2) / max_speed) * speed
                             li1.append((psucc1, ns, reward, done))
                             li2.append((psucc2, ns, reward, done))
 
@@ -251,7 +251,9 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.P1_sa = self.p_sa(self.P1_sas)
         self.P2_sas = self.p_sas(self.P2)
         self.P2_sa = self.p_sa(self.P2_sas)
-        # linear combination of P1,P2 with parameter k
+        # linear combination of P1, P2 with parameter k
+        if initial_configuration is None:
+            initial_configuration = 0.5
         self.k = initial_configuration
         self.P = P = self.model_configuration(self.k)
 
@@ -302,6 +304,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         x, y = self.lin[s_lin]
         return (x, y, vx, vy)
 
+    # method to convert the track file csv
     def _load_convert_csv(self, track_file):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         path = dir_path + '/tracks/' + track_file + '.csv'
