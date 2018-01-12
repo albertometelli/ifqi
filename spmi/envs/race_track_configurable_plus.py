@@ -60,7 +60,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.max_psuc2 = max_psuc2 = 0.9
         self.min_psuc2 = min_psuc2 = 0.1
         self.max_pboost = max_pboost = 0.5
-        self.min_pboost = min_pboost = 0
+        self.min_pboost = min_pboost = 0.
         self.max_speed = max_speed = 2 * (max(vel) ** 2)
 
         # P_highspeed_noboost, P_lowspeed_noboost, P_highspeed_boost, P_lowspeed_boost
@@ -175,7 +175,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         # failed actions as random actions
         def fill_p_failed_as_random():
 
-            # filling the value of P_highspeed_noboost and P_lowspeed_noboost
+            # filling the value of the vertex models
             for [x, y] in lin:
                 for vx in vel:
                     for vy in vel:
@@ -219,7 +219,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                                     # FAILED ACTION TRANSITIONS
                                     pins_hs = 1 - psuc_hs
                                     pins_ls = 1 - psuc_ls
-                                    a_fail = actions
+                                    a_fail = np.copy(actions)
                                     a_fail[a_index] = 0
                                     for i in range(len(a_fail)):
                                         if a_fail[i] not in actions_nb:
@@ -304,7 +304,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                                     # FAILED ACTION TRANSITIONS
                                     pins_hs = 1 - psuc_hs
                                     pins_ls = 1 - psuc_ls
-                                    a_fail = actions
+                                    a_fail = np.copy(actions)
                                     for i in range(len(a_fail)):
                                         if a_fail[i] not in actions_nb:
                                             a_fail[i] = 0
