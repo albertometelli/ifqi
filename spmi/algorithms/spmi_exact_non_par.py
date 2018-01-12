@@ -740,6 +740,7 @@ class SPMI(object):
     def model_combination(self, beta, target, current):
         new_model = model_convex_combination(self.mdp.P, target, current, beta)
         self.mdp.set_model(new_model.get_rep())
+        self.mdp.P_sa = new_model.get_matrix()
         return new_model
 
     # utility method to print the algorithm trace
@@ -784,6 +785,16 @@ class SPMI(object):
         print('beta star: {0}'.format(beta_star))
         print('model dist sup: {0}'.format(m_dist_sup))
         print('model dist mean: {0}'.format(m_dist_mean))
+
+        # coefficient computation and print
+        if len(self.model_chooser.model_set) == 2:
+            P = self.mdp.P_sa
+            P1 = self.model_chooser.model_set[0].get_matrix()
+            P2 = self.model_chooser.model_set[1].get_matrix()
+            k = (P - P2) / (P1 - P2 + 1e-24)
+            k = np.max(k)
+            print('\ncurrent k: {0}'.format(k))
+            self.coefficients.append(k)
 
         # iteration update
         self.iteration = self.iteration + 1

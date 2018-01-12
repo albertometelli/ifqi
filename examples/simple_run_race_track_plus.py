@@ -1,35 +1,35 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import time
-
-from spmi.utils.uniform_policy import UniformPolicy
 from spmi.envs.race_track_configurable_plus import RaceTrackConfigurableEnv
-from spmi.algorithms.spmi_exact import SPMI
+from spmi.algorithms.spmi_exact_non_par import SPMI
+from spmi.utils.uniform_policy import UniformPolicy
+from spmi.algorithms.policy_chooser import *
+from spmi.algorithms.model_chooser import *
+import numpy as np
+import matplotlib.pyplot as plt
+
+dir_path = "/Users/mirco/Desktop/Simulazioni/SPMI_non_par"
+
+mdp = RaceTrackConfigurableEnv(track_file='track0', initial_configuration=0.5)
+
+uniform_policy = UniformPolicy(mdp)
+
+initial_model = TabularModel(mdp.P, mdp.nS, mdp.nA)
+initial_policy = TabularPolicy(uniform_policy.get_rep(), mdp.nS, mdp.nA)
+
+model_set = [TabularModel(mdp.P_highspeed_noboost, mdp.nS, mdp.nA),
+             TabularModel(mdp.P_lowspeed_noboost, mdp.nS, mdp.nA),
+             TabularModel(mdp.P_highspeed_boost, mdp.nS, mdp.nA),
+             TabularModel(mdp.P_lowspeed_boost, mdp.nS, mdp.nA)]
+
+policy_chooser = GreedyPolicyChooser(mdp.nS, mdp.nA)
+model_chooser = SetModelChooser(model_set, mdp.nS, mdp.nA)
+
+eps = 0.0
+spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=50000, use_target_trick=True, delta_q=1)
 
 
-
-dir_path = "/Users/mirco/Desktop/Simulazioni/SPMI/Simulazione_SPMI"
-
-
-startTime = time.time()
-
-
-k = 0.5
-mdp = RaceTrackConfigurableEnv(track_file='track0')
-
-
-print('nS: {0}'.format(mdp.nS))
-print('MDP instantiated')
-
-
-eps = 0.00001
-spmi = SPMI(mdp, eps)
-model = np.array([k, 1 - k])
-policy = UniformPolicy(mdp)
-
-policy, model = spmi.safe_policy_model_iteration(policy, model)
-spmi.save_simulation(dir_path)
-
+#-------------------------------------------------------------------------------
+#SPMI
+policy, model = spmi.safe_policy_model_iteration(initial_policy, initial_model)
 
 iterations = np.array(range(spmi.iteration))
 evaluations = np.array(spmi.evaluations)
@@ -41,7 +41,19 @@ m_dist_sup = np.array(spmi.m_dist_sup)
 m_dist_mean = np.array(spmi.m_dist_mean)
 alfas = np.array(spmi.alfas)
 betas = np.array(spmi.betas)
-coefficient = np.array(spmi.coefficients)
+p_change = np.cumsum(1 - np.array(spmi.p_change))
+m_change = np.cumsum(1 - np.array(spmi.m_change))
+
+
+
+# # coefficient computation and print
+# P = mdp.P_sa
+# P1 = mdp.P1_sa
+# P2 = mdp.P2_sa
+# k = (P - P2) / (P1 - P2 + 1e-24)
+# k = np.max(k)
+# print('\n---- current k: {0} ----'.format(k))
+
 
 plt.switch_backend('pdf')
 
@@ -79,14 +91,3 @@ plt.plot(iterations, betas, color='tab:red', linestyle='dashed', label='beta')
 plt.legend(loc='best', fancybox=True)
 plt.yscale('log')
 plt.savefig(dir_path + "/beta_advantage")
-
-plt.figure()
-plt.title('Model combination coefficient')
-plt.xlabel('Iteration')
-plt.plot(iterations, coefficient, color='tab:purple', label='coefficient')
-plt.legend(loc='best', fancybox=True)
-plt.savefig(dir_path + "/coefficient")
-
-
-
-print('The script took {0} minutes'.format((time.time() - startTime) / 60))
