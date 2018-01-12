@@ -4,7 +4,7 @@ import time
 
 from spmi.utils.uniform_policy import UniformPolicy
 from spmi.envs.race_track_configurable_plus import RaceTrackConfigurableEnv
-from spmi.algorithms.spmi_exact import SPMI
+from spmi.algorithms.spmi_exact_par import SPMI
 
 
 

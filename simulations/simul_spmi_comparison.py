@@ -4,7 +4,7 @@ import time
 
 from spmi.utils.uniform_policy import UniformPolicy
 from spmi.envs.race_track_configurable import RaceTrackConfigurableEnv
-from spmi.algorithms.spmi_exact import SPMI
+from spmi.algorithms.spmi_exact_par import SPMI
 
 path_name = "/Users/mirco/Desktop/Simulazioni"
 path_file = "/Simulazione_SPMI"

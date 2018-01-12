@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from spmi.utils.uniform_policy import UniformPolicy
 from spmi.utils.random_policy import RandomPolicy
 from spmi.envs.race_track_configurable import RaceTrackConfigurableEnv
-from spmi.algorithms.parametric_smi_exact import pSMI
+from spmi.algorithms.smi_exact_par import pSMI
 
 
 # define SpiPolicy class at module top level to use pickle!
