@@ -137,7 +137,7 @@ class GaussianPolicyLinearMean(ParametricPolicy):
             return gradient.ravel()
         else:
             return gradient
-
+    '''
     def M_2(self, other):
         covar_diff = 2 * other.covar - self.covar
         inv_covar_diff = la.inv(covar_diff)
@@ -166,6 +166,21 @@ class GaussianPolicyLinearMean(ParametricPolicy):
             return gradient.ravel()
         else:
             return gradient
+    '''
+    def gradient_M_2(self, other):
+        gK = other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar))) * 2 \
+            * self.max_state ** 2 / (2*other.covar - self.covar) * (self.K - other.K) * \
+            np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2*other.covar - self.covar))
+        gL = (-other.covar / (self.covar * np.sqrt(2*other.covar - self.covar)) + \
+             other.covar / (2*other.covar - self.covar) ** (3./2) +\
+             2 * self.max_state ** 2 * other.covar * la.norm(self.K - other.K) ** 2 / (2*other.covar - self.covar) ** (5./2)) * \
+             np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2 * other.covar - self.covar))
+        #print("gradient M_2 %s" % np.array([np.asscalar(gK), np.asscalar(gL)]))
+        return np.array([np.asscalar(gK), np.asscalar(gL)])
+
+    def M_2(self, other):
+        return np.asscalar(other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar))) *\
+               np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2*other.covar - self.covar)))
 
 class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
     '''
@@ -279,6 +294,21 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
         else:
             return gradient_K, gradient_Lambda
 
+    def gradient_M_2(self, other):
+        gK = other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar))) * 2 \
+            * self.max_state ** 2 / (2*other.covar - self.covar) * (self.K - other.K) * \
+            np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2*other.covar - self.covar))
+        gL = (-other.covar / (self.covar * np.sqrt(2*other.covar - self.covar)) + \
+             other.covar / (2*other.covar - self.covar) ** (3./2) +\
+             2 * self.max_state ** 2 * other.covar * la.norm(self.K - other.K) ** 2 / (2*other.covar - self.covar) ** (5./2)) * \
+             np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2 * other.covar - self.covar))
+        print("gradient M_2 %s" % np.array([np.asscalar(gK), np.asscalar(gL)]))
+        return np.array([np.asscalar(gK), np.asscalar(gL)])
+
+    def M_2(self, other):
+        return np.asscalar(other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar))) *\
+               np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2*other.covar - self.covar)))
+    '''
     def M_2(self, other):
         covar_diff = 2 * other.covar - self.covar
         inv_covar_diff = la.inv(covar_diff)
@@ -289,6 +319,7 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
         return la.det(other.covar) ** self.dimension / la.det(self.covar) ** (self.dimension / 2.) / \
                 la.det(covar_diff) ** (self.dimension / 2.) * \
                np.exp(.5 * max_eigval * self.max_state ** 2)
+
 
     def gradient_M_2(self, other, vectorize=True):
         covar_diff = 2 * other.covar - self.covar
@@ -305,12 +336,11 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
         gradient_Lambda = -other.covar / (self.covar * np.sqrt(2*other.covar - self.covar)) + other.covar / (2*other.covar - self.covar)**(3./2) + 2 * (.5 * max_eigval * self.max_state ** 2) * other.covar / (2*other.covar - self.covar)**(5./2)
         gradient_Lambda *= np.exp(.5 * max_eigval * self.max_state ** 2)
 
-        '''
-        ONLY 1 DIMENSION!!!
-        '''
+        #ONLY 1 DIMENSION!!!
+
 
         return np.array([np.asscalar(gradient_K), np.asscalar(gradient_Lambda)])
-
+    '''
 
 class RBFGaussianPolicy(ParametricPolicy):
 

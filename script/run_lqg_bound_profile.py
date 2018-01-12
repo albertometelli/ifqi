@@ -12,16 +12,16 @@ from mpl_toolkits.mplot3d import Axes3D
 mdp = LQG1D()
 K_opt = mdp.computeOptimalK()
 
-sb = 2.
-st = 1.99
-mub = -0.2
-mut = 0.
-N = 36
+sb = 1.
+st = .99
+mub = -0.5
+mut = -0.5
+N = 1000
 
-K_grid = np.arange(-0.7, 0.1, 0.1)
-#K_grid = np.array([-0.2])
-c_grid = np.arange(0., 1.1, 0.1)
-#c_grid = np.array([1.])
+#K_grid = np.arange(-0.7, 0.1, 0.1)
+K_grid = np.arange(-0.7, -0.4, 0.03)
+#c_grid = np.arange(0.9, 1.1, 0.1)
+c_grid = np.array([1.])
 
 K, C = np.meshgrid(K_grid, c_grid)
 
@@ -85,7 +85,7 @@ def variance_Bernstein(dataset, behavioral_policy, target_policy, gamma, h, k, c
         2 * (1 + c ** 2 * (M_2 ** h - 1)) * np.log(1 / delta) / N))
 
 
-h = 10
+h = 15
 delta = 0.2
 
 bound_Hoeffding = np.zeros(K.shape)
@@ -124,7 +124,7 @@ for i in range(K.shape[0]):
         print(
         'Parameter = %s \t Shrinkage = %s \t Bias = %s\t J_hat = %s \t bound = %s' % (
         k, c, bias_, J,  bound_Chebychev[i, j]))
-'''
+
 fig = plt.figure()
 ax = fig.gca(projection='3d')
 surf = ax.plot_surface(K, C , bound_Hoeffding, cmap=cm.coolwarm,
@@ -135,7 +135,6 @@ ax.set_xlabel('parameter')
 ax.set_ylabel('shrinkage')
 ax.set_zlabel('bound')
 ax.set_title('Hoeffding')
-'''
 
 fig = plt.figure()
 ax = fig.gca(projection='3d')
@@ -148,7 +147,7 @@ ax.set_ylabel('shrinkage')
 ax.set_zlabel('bound')
 ax.set_title('Chebychev')
 
-'''
+
 fig = plt.figure()
 ax = fig.gca(projection='3d')
 surf = ax.plot_surface(K, C , bound_Bernstain, cmap=cm.coolwarm,
@@ -159,7 +158,6 @@ ax.set_xlabel('parameter')
 ax.set_ylabel('shrinkage')
 ax.set_zlabel('bound')
 ax.set_title('Bernstein')
-
 
 
 
@@ -180,7 +178,6 @@ ax.scatter(K[-1,j], bound_Chebychev[i,j], s=200, c='k', marker='o')
 ax.set_xlabel('parameter')
 ax.set_ylabel('bound')
 ax.set_title('Chebychev')
-ax.set_ylim([-2000,0])
 
 fig, ax = plt.subplots()
 ax.plot(K[-1,:], bound_Bernstain[-1,:])
@@ -189,5 +186,3 @@ ax.scatter(K[-1,j], bound_Bernstain[i,j], s=200, c='k', marker='o')
 ax.set_xlabel('parameter')
 ax.set_ylabel('bound')
 ax.set_title('Bernstain')
-ax.set_ylim([-2000,0])
-'''

@@ -213,7 +213,7 @@ class PolicyGradientLearner(object):
             print('Bound: %s' % self.bound.__class__)
             print('Trajectory generator: %s' % self.trajectory_generator.__class__)
 
-        gradient, avg_return, penalization, H_star = self.estimator.estimate(baseline_type=self.baseline_type)
+        gradient, avg_return, penalization, H_star, terminate = self.estimator.estimate(baseline_type=self.baseline_type)
 
         if return_history:
             history = [[np.copy(theta), avg_return, gradient, penalization, H_star]]
@@ -223,7 +223,7 @@ class PolicyGradientLearner(object):
         if self.verbose >= 1:
             print('Ite %s: return %s - gradient norm %s' % (ite, avg_return, gradient_norm))
 
-        while ite < self.max_iter_opt and gradient_norm > self.tol_opt:
+        while ite < self.max_iter_opt and gradient_norm > self.tol_opt: #and not terminate:
 
             theta = self.gradient_updater.update(gradient) #Gradient ascent update
             if self.verbose >= 1:
@@ -231,9 +231,13 @@ class PolicyGradientLearner(object):
 
             self.target_policy.set_parameter(theta)
             self.estimator.set_target_policy(self.target_policy)
-            gradient, avg_return, penalization, H_star  = self.estimator.estimate(baseline_type=self.baseline_type)
+            gradient, avg_return, penalization, H_star, terminate  = self.estimator.estimate(baseline_type=self.baseline_type)
+
             if return_history:
                 history.append([np.copy(theta), avg_return, gradient, penalization, H_star])
+
+            #if terminate:
+            #   break
 
             gradient_norm = la.norm(gradient)
             ite += 1
@@ -241,6 +245,7 @@ class PolicyGradientLearner(object):
             if self.verbose >= 1:
                 print('Ite %s: return %s - gradient norm %s - penalization %s' % (
                 ite, avg_return, gradient_norm, penalization))
+                print(terminate)
 
         if return_history:
             return theta, history
@@ -523,12 +528,24 @@ class GradientEstimator(object):
                                 ws[:, :, np.newaxis] * \
                                 (traj_returns[:, :, np.newaxis] - baseline), axis=1), axis=0)
         print("gradient estimate %s" % gradient_estimate)
+
+
+        if la.norm(penalization_gradient) >= la.norm(gradient_estimate):
+            terminate = True
+        else:
+            terminate = False
+
+
+
         gradient_estimate = gradient_estimate + self.gamma ** k * penalization_gradient
 
 
         if self.verbose:
             print("penalization gradient %s" % penalization_gradient)
-        return gradient_estimate, np.mean(np.sum(traj_returns, axis=1)), penalization, H_star
+
+
+
+        return gradient_estimate, np.mean(np.sum(traj_returns, axis=1)), penalization, H_star, terminate
 
 class ReinforceGradientEstimator(GradientEstimator):
 
