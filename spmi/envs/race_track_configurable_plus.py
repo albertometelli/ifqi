@@ -194,7 +194,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                             li_hs_b = self.P_highspeed_boost[s][a_index]
                             li_ls_b = self.P_lowspeed_boost[s][a_index]
                             type = track[x, y]
-                            if type == '2':  # if s is goal state
+                            if type == '2' or type == '0':  # if s is goal state
                                 li_hs_nb.append((1.0, s, 0, True))
                                 li_ls_nb.append((1.0, s, 0, True))
                                 li_hs_b.append((1.0, s, 0, True))
@@ -261,7 +261,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                                     reward_b = rstate(nxb, nyb, nvxb, nvyb, reward_weight)
 
                                     # failure state
-                                    (xf, yf) = np.where(track == '2')
+                                    (xf, yf) = np.where(track == '0')
                                     xf = np.asscalar(xf)
                                     yf = np.asscalar(yf)
                                     ns_f = self._s_to_i(xf, yf, 0, 0)
