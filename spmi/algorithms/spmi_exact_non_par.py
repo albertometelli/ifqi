@@ -105,7 +105,8 @@ class SPMI(object):
 
         # check convergence condition
         convergence = eps / (1 - gamma)
-        while ((p_er_adv + m_er_adv) > convergence) and self.iteration < iteration_horizon:
+        #while (p_er_adv > convergence or m_er_adv > convergence) and self.iteration < iteration_horizon:
+        while (p_er_adv > convergence or m_er_adv > convergence) and self.iteration < iteration_horizon:
 
             target_policies = [(target_policy, p_er_adv, p_dist_sup, p_dist_mean)]
             if self.use_target_trick:
@@ -184,6 +185,8 @@ class SPMI(object):
                                 target_policy_star, target_policy_old, target_model_star, target_model_old,
                                  convergence)
 
+            mu = self.mdp.mu
+
             # policy chooser
             target_policy_old = target_policy_star
             d_mu = evaluator.compute_discounted_s_distribution(mu, \
@@ -196,9 +199,6 @@ class SPMI(object):
             delta_mu = evaluator.compute_discounted_sa_distribution(mu, \
                 policy, model, gamma, horizon, nS, nA, d_mu)
             m_er_adv, m_dist_sup, m_dist_mean, target_model = self.model_chooser.choose(model, delta_mu, U)
-
-            if self.iteration == 1120:
-                pass
 
         return policy, model
 
@@ -787,7 +787,7 @@ class SPMI(object):
         print('model dist mean: {0}'.format(m_dist_mean))
 
         # coefficient computation and print
-        if len(self.model_chooser.model_set) == 2:
+        if isinstance(self.model_chooser, SetModelChooser) and len(self.model_chooser.model_set) == 2:
             P = self.mdp.P_sa
             P1 = self.model_chooser.model_set[0].get_matrix()
             P2 = self.model_chooser.model_set[1].get_matrix()

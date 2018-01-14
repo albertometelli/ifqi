@@ -68,3 +68,44 @@ class SetPolicyChooser(PolicyChooser):
         distance_mean = policy_mean_tv_distance(target_policy, policy, d_mu_pi)
 
         return er_advantage, distance_sup, distance_mean, target_policy
+
+class DoNotCreateTransitionsGreedyPolicyChooser(PolicyChooser):
+    def __init__(self, original_policy, nS, nA):
+        self.original_policy = original_policy
+        super(DoNotCreateTransitionsGreedyPolicyChooser, self).__init__(nS, nA)
+
+    def choose(self, policy, d_mu_pi, Q):
+        target_policy_rep = self.dnct_greedy_policy(Q)
+        target_policy = TabularPolicy(target_policy_rep, self.nS, self.nA)
+
+        # EXPECTED RELATIVE ADVANTAGE COMPUTATION
+        er_advantage = evaluator.compute_policy_er_advantage(target_policy,
+                                                             policy, Q, d_mu_pi)
+
+        # POLICY DISTANCE COMPUTATIONS
+        distance_sup = policy_sup_tv_distance(target_policy, policy)
+        distance_mean = policy_mean_tv_distance(target_policy, policy, d_mu_pi)
+
+        return er_advantage, distance_sup, distance_mean, target_policy
+
+    def dnct_greedy_policy(self, Q, tol=1e-8):
+        greedy_policy_rep = {s: [] for s in range(self.nS)}
+
+        for s in range(self.nS):
+
+            q_array = np.copy(Q[s*self.nA:(s+1)*self.nA])
+
+            li = self.original_policy[s]
+            for i, elem in enumerate(li):
+                if elem == 0.:
+                    q_array[i] = -np.inf
+
+            probabilities = np.zeros(self.nA)
+
+            # uniform if more than one greedy
+            max = np.max(q_array)
+            s1 = np.argwhere(np.abs(q_array - max) < tol).flatten()
+            probabilities[s1] = 1. / len(s1)
+            greedy_policy_rep[s] = probabilities
+
+        return greedy_policy_rep
