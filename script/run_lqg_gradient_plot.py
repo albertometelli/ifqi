@@ -56,7 +56,7 @@ for i in range(K.shape[0]):
                                                        mdp.horizon,
                                                        select_initial_point=False,
                                                        select_optimal_horizon=False,
-                                                       bound='chebyshev',
+                                                       bound='normal',
                                                        delta=0.2,
                                                        behavioral_policy=behavioral_policy,
                                                        importance_weighting_method='is',
