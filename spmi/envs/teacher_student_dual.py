@@ -60,15 +60,6 @@ class TeacherStudentEnv(discrete.DiscreteEnv):
     def set_model(self, model):
         self.P = copy.deepcopy(model)
 
-        self.isd = np.zeros(self.nS)
-        for a in range(self.nA):
-            li = self.P[0][a]
-            for elem in li:
-                self.isd[elem[1]] += elem[0]
-
-        self.isd /= sum(self.isd)
-        self.mu = self.isd
-
         self.P_sas = p_sas(self.P, self.nS, self.nA)
         self.P_sa = p_sa(self.P_sas, self.nS, self.nA)
         self.R_sas = r_sas(self.P, self.nS, self.nA)
