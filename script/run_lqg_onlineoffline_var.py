@@ -41,8 +41,6 @@ offline_iterations = 50
 history = []
 lens = [0]
 
-J_theo = []
-
 for i in range(online_iterations):
     dataset = collect_episodes(mdp, behavioral_policy, n_episodes=N)
     offline_trajectory_generator = OfflineTrajectoryGenerator(dataset)
@@ -63,7 +61,7 @@ for i in range(online_iterations):
                                                    gradient_updater='vanilla',
                                                    max_iter_opt=offline_iterations,
                                                    max_iter_eval=N,
-                                                   verbose=2)
+                                                   verbose=0)
 
     initial_parameter = behavioral_policy.get_parameter()
     optimal_parameter, history_offline_reinforce = offline_reinforce_cheb.optimize(
@@ -73,6 +71,21 @@ for i in range(online_iterations):
     history.extend(history_offline_reinforce[:-1])
     behavioral_policy.set_parameter(optimal_parameter)
     target_policy.set_parameter(optimal_parameter)
+
+    print('*****************ITERATION %s/%s*****************' % (i, online_iterations))
+    print('Initial parameter: %s' % initial_parameter)
+    print('Optimal parameter: %s' % optimal_parameter)
+    print('Iterations: %s' % (len(history_offline_reinforce) - 1))
+    #print('M_2: %s')
+    #print('M_inf %s')
+    #print('Average return %s')
+    #print('Gradient %s')
+    #print('Gradient J_hat')
+    #print('Gradient penalization')
+    #print('Bound value')
+    #print('Batch size')
+
+
 
 history.append(history_offline_reinforce[-1])
 _filter = np.cumsum(lens)
@@ -141,13 +154,21 @@ ax.set_xlabel('Iteration')
 ax.set_ylabel('Avg return')
 legend = ax.legend(loc='upper right')
 
-'''
-fig, ax = plt.subplots()
-ax.plot(np.array(history)[:, 1] / np.concatenate([[1], np.repeat(np.arange(len(lens)), lens)]), 'g', label='Offline')
-ax.plot(np.array(history_online_reinforce)[:, 1] / np.arange(1,len(np.array(history_online_reinforce)[:, 1])+1), 'g--', label='Offline++')
-ax.plot(_filter, np.array(history_online_reinforce)[:len(_filter), 1] / np.arange(1,len(_filter)+1), 'g:', label='Offline--')
-ax.set_xlabel('Iteration')
-ax.set_ylabel('Avg return per trajectory')
-legend = ax.legend(loc='upper right')
+def lqg_theoreical_J(k, sigma, lambda_, r, q, a, b, S, gamma):
+    return -1./(1-gamma) * sigma**2 * r - (k**2*r+q)/(1-gamma*(a+k*b)**2) * (S**2/3 + gamma/(1-gamma) * (lambda_**2+b**2*sigma**2))
 
-'''
+J_theoretical_ours = []
+for i in range(len(np.array(history)[_filter])):
+    J_theoretical_ours.append(np.asscalar(lqg_theoreical_J(np.array(history)[_filter][i][0][0], np.array(history)[_filter][i][0][1], mdp.sigma_noise, mdp.R, mdp.Q, mdp.A, mdp.B, mdp.max_pos, mdp.gamma)))
+
+J_theoretical_gpomdp = []
+for i in range(len(history_online_reinforce)):
+    J_theoretical_gpomdp.append(np.asscalar(lqg_theoreical_J(history_online_reinforce[i][0][0], history_online_reinforce[i][0][1], mdp.sigma_noise, mdp.R, mdp.Q, mdp.A, mdp.B, mdp.max_pos, mdp.gamma)))
+
+
+fig, ax = plt.subplots()
+ax.plot(J_theoretical_ours, 'g', label='Ours')
+ax.plot(J_theoretical_gpomdp, 'g:', label='GPOMDP')
+ax.set_xlabel('Iteration')
+ax.set_ylabel('Expected return theoretical')
+legend = ax.legend(loc='upper right')
