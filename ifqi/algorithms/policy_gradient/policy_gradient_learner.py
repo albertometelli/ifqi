@@ -30,6 +30,7 @@ class PolicyGradientLearner(object):
                  select_initial_point=None,
                  select_optimal_horizon=False,
                  adaptive_stop=False,
+                 safe_stopping=False,
                  max_iter_eval=100,
                  tol_eval=-1.,
                  max_iter_opt=100,
@@ -95,6 +96,7 @@ class PolicyGradientLearner(object):
         self.select_initial_point = select_initial_point
         self.select_optimal_horizon = select_optimal_horizon
         self.adaptive_stop = adaptive_stop
+        self.safe_stopping = safe_stopping
 
         if importance_weighting_method is not None and behavioral_policy is None:
             raise ValueError('If you want to use importance weighting you must \
@@ -235,7 +237,7 @@ class PolicyGradientLearner(object):
             print('Ite %s: return %s - gradient norm %s' % (ite, avg_return, gradient_norm))
 
         while ite < self.max_iter_opt and gradient_norm > self.tol_opt: # and not (terminate and self.adaptive_stop):
-
+            theta_old = np.copy(theta) #Backup for safe stopping
             theta = self.gradient_updater.update(gradient) #Gradient ascent update
             if self.verbose >= 1:
                 print(theta)
@@ -249,7 +251,11 @@ class PolicyGradientLearner(object):
                 history.append([np.copy(theta), avg_return, gradient, penalization, H_star])
 
             if self.adaptive_stop and np.dot(old_gradient, gradient) <= 0:
-               break
+               #Stopping
+                if self.safe_stopping:
+                    theta = np.copy(theta_old)
+                    #TODO: implement step size search
+                break
 
             gradient_norm = la.norm(gradient)
             ite += 1
