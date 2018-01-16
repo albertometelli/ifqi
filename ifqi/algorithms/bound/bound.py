@@ -3,6 +3,7 @@ import numpy as np
 import math
 import scipy.optimize as opt
 from scipy.special import lambertw
+import scipy.stats as sts
 
 def variance_pdis_bound(M_2, H, gamma):
     return M_2 * (1 - (gamma ** 2 * M_2) ** H) / (1 - (gamma ** 2 * M_2)) + \
@@ -149,11 +150,11 @@ class ChebyshevBoundRatioImportanceWeighting(ChebyshevBound):
             f = np.sqrt(1. / self.N * (1./self.delta - 1))
             ratio = np.log(1./self.gamma) / (1./self.gamma - 1)
             H_star = 2. / np.log(self.M_2) * (lambertw(ratio / f * np.exp(ratio)).real - ratio)
-            print(self.M_2)
-            H_star = min(H_star,self.horizon)
-            return int(round(H_star))
+            H_star = min(H_star, self.horizon)
+            return int(H_star)
         else:
             raise NotImplementedError()
+
 
     #Chebyshev + cost-sensitive
     def get_optimal_batchsize(self,J_hat_t,J_hat_b):
@@ -256,3 +257,41 @@ class BernsteinBoundRatioImportanceWeighting(BernsteinBound):
 
 class BernsteinBoundPerDecisionRatioImportanceWeighting(BernsteinBound):
     pass
+
+
+class NormalBound(Bound):
+
+    def set_policies(self, behavioral_policy, target_policy):
+        super(NormalBound, self).set_policies(behavioral_policy, target_policy)
+        self.M_2 = self.target_policy.M_2(self.behavioral_policy)
+        self.M_2_gradient = self.target_policy.gradient_M_2(self.behavioral_policy)
+        self.z = sts.norm.ppf(1. - self.delta)
+
+        if self.select_optimal_horizon:
+            self.H_star = self.get_optimal_horizon()
+        else:
+            self.H_star = self.horizon
+
+class NormalBoundRatioImportanceWeighting(NormalBound):
+
+    def penalization(self):
+        bias = - (self.gamma ** self.H_star - self.gamma ** self.horizon) / (
+        1 - self.gamma)
+        var = - (1 - self.gamma ** self.H_star) / \
+              (1 - self.gamma) * self.z * np.sqrt(self.M_2 ** self.H_star / self.N)
+        return bias + var
+
+    def gradient_penalization(self):
+        return - (1 - self.gamma ** self.H_star) / \
+              (1 - self.gamma) * self.H_star / 2. * self.M_2 ** (self.H_star / 2. - 1) \
+              * self.M_2_gradient * np.sqrt(1. / self.N) * self.z
+
+    def get_optimal_horizon(self, approximated=True):
+        if approximated:
+            f = np.sqrt(1. / self.N) * self.z
+            ratio = np.log(1./self.gamma) / (1./self.gamma - 1)
+            H_star = 2. / np.log(self.M_2) * (lambertw(ratio / f * np.exp(ratio)).real - ratio)
+            H_star = min(H_star, self.horizon)
+            return int(H_star)
+        else:
+            raise NotImplementedError()

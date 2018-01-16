@@ -1,6 +1,6 @@
 from ifqi.envs.lqg1d import LQG1D
 from ifqi.algorithms.policy_gradient.policy import GaussianPolicyLinearMean, \
-    DeterministicPolicyLinearMean
+    DeterministicPolicyLinearMean, GaussianPolicyLinearMeanCholeskyVar
 from ifqi.evaluation.evaluation import collect_episodes
 from ifqi.evaluation.trajectory_generator import OnlineTrajectoryGenerator, \
     OfflineTrajectoryGenerator
@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 mdp = LQG1D()
-mdp.horizon = 15
+mdp.horizon = 10
 K_opt = mdp.computeOptimalK()
 
 sb = 1.
@@ -20,16 +20,17 @@ mut = -0.2
 
 # Instantiate policies
 optimal_policy = DeterministicPolicyLinearMean(K_opt)
-behavioral_policy = GaussianPolicyLinearMean(mub, sb ** 2)
-target_policy = GaussianPolicyLinearMean(mut, st ** 2)
+behavioral_policy = GaussianPolicyLinearMean(mub, sb**2)
+target_policy = GaussianPolicyLinearMean(mut, st**2)
 
 
-N = 1000
+N = 500
 
-online_iterations = 10
-offline_iterations = 20
+online_iterations = 100
+offline_iterations = 50
 
 history = []
+lens = [0]
 
 for i in range(online_iterations):
     dataset = collect_episodes(mdp, behavioral_policy, n_episodes=N)
@@ -39,8 +40,9 @@ for i in range(online_iterations):
                                                    target_policy,
                                                    mdp.gamma,
                                                    mdp.horizon,
-                                                   select_initial_point=False,
-                                                   select_optimal_horizon=False,
+                                                   select_initial_point=True,
+                                                   select_optimal_horizon=True,
+                                                   adaptive_stop=True,
                                                    bound='chebyshev',
                                                    delta=0.2,
                                                    behavioral_policy=behavioral_policy,
@@ -49,20 +51,56 @@ for i in range(online_iterations):
                                                    estimator='gpomdp',
                                                    gradient_updater='adam',
                                                    max_iter_opt=offline_iterations,
-                                                   max_iter_eval=500,
+                                                   max_iter_eval=N,
                                                    verbose=2)
 
     initial_parameter = behavioral_policy.get_parameter()
     optimal_parameter, history_offline_reinforce = offline_reinforce_cheb.optimize(
         initial_parameter, return_history=True)
 
+    lens.append(len(history_offline_reinforce)-1)
     history.extend(history_offline_reinforce[:-1])
     behavioral_policy.set_parameter(optimal_parameter)
     target_policy.set_parameter(optimal_parameter)
 
+history.append(history_offline_reinforce[-1])
+_filter = np.cumsum(lens)
+
+target_policy.set_parameter(target_policy.from_param_to_vec(-0.2))
+online_trajectory_generator = OnlineTrajectoryGenerator(mdp, target_policy)
+
+online_reinforce_cheb = PolicyGradientLearner(online_trajectory_generator,
+                                               target_policy,
+                                               mdp.gamma,
+                                               mdp.horizon,
+                                               select_initial_point=False,
+                                               select_optimal_horizon=False,
+                                               learning_rate=0.002,
+                                               estimator='gpomdp',
+                                               gradient_updater='adam',
+                                               max_iter_opt=sum(lens),
+                                               max_iter_eval=N,
+                                               verbose=2)
+
+initial_parameter = target_policy.get_parameter()
+optimal_parameter, history_online_reinforce = online_reinforce_cheb.optimize(
+        initial_parameter, return_history=True)
+
 fig, ax = plt.subplots()
-ax.plot(np.array(history)[:, 0], 'r', label='Offline')
-ax.scatter(range(0,offline_iterations*online_iterations,online_iterations), np.array(np.vstack(history))[range(0,offline_iterations*online_iterations,online_iterations), 0], marker='o')
+ax.plot(np.vstack(np.array(history)[:, 0])[:, 0], 'r', label='Offline')
+ax.plot(np.vstack(np.array(history_online_reinforce)[:, 0])[:, 0], 'r--', label='Online++')
+ax.plot(_filter, np.vstack(np.array(history_online_reinforce)[:, 0])[:len(_filter), 0], 'r:', label='Online--')
+ax.scatter(_filter, np.vstack(np.array(history)[:, 0])[_filter, 0], c='r', marker='o')
 ax.set_xlabel('Iteration')
 ax.set_ylabel('Parameter')
+legend = ax.legend(loc='upper right')
+
+
+fig, ax = plt.subplots()
+ax.plot(np.array(history)[:, 1], 'g', label='Offline')
+ax.plot(np.array(history_online_reinforce)[:, 1], 'g--', label='Offline++')
+ax.plot(_filter, np.array(history_online_reinforce)[:len(_filter), 1], 'g:', label='Offline--')
+ax.scatter(_filter, np.vstack(np.array(history)[:, 1])[_filter], c='g', marker='o')
+ax.set_xlabel('Iteration')
+ax.set_ylabel('Avg return')
 legend = ax.legend(loc='upper right')
