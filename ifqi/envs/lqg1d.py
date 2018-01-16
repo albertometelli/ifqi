@@ -35,7 +35,7 @@ class LQG1D(gym.Env):
     }
 
     def __init__(self, discrete_reward=False):
-        self.horizon = 20
+        self.horizon = 10
         self.gamma = 0.99
 
         self.discrete_reward = discrete_reward
@@ -65,6 +65,7 @@ class LQG1D(gym.Env):
         self.reset()
 
     def step(self, action, render=False):
+        self.t+=1
         u = np.clip(action, -self.max_action, self.max_action)
         noise = self.np_random.randn() * self.sigma_noise
         xn = np.dot(self.A, self.state) + np.dot(self.B, u) + noise
@@ -81,9 +82,11 @@ class LQG1D(gym.Env):
             if abs(self.state[0]) <= 2 and abs(u) <= 2:
                 return self.get_state(), 0, False, {}
             return self.get_state(), -1, False, {}
-        return self.get_state(), -np.asscalar(normalized_cost), False, {}
+        done = self.t>=self.horizon
+        return self.get_state(), -np.asscalar(normalized_cost), done, {}
 
     def reset(self, state=None):
+        self.t = 0
         if state is None:
             self.state = np.array([self.np_random.uniform(low=-self.max_pos,
                                                           high=self.max_pos)])

@@ -94,6 +94,7 @@ class PolicyGradientLearner(object):
         self.select_initial_point = select_initial_point
         self.select_optimal_horizon = select_optimal_horizon
 
+
         if importance_weighting_method is not None and behavioral_policy is None:
             raise ValueError('If you want to use importance weighting you must \
                              provide a behavioral policy')
@@ -213,7 +214,7 @@ class PolicyGradientLearner(object):
             print('Bound: %s' % self.bound.__class__)
             print('Trajectory generator: %s' % self.trajectory_generator.__class__)
 
-        gradient, avg_return, penalization, H_star, terminate = self.estimator.estimate(baseline_type=self.baseline_type)
+        gradient, avg_return, avg_return_b, penalization, H_star, terminate = self.estimator.estimate(baseline_type=self.baseline_type)
 
         if return_history:
             history = [[np.copy(theta), avg_return, gradient, penalization, H_star]]
@@ -231,7 +232,10 @@ class PolicyGradientLearner(object):
 
             self.target_policy.set_parameter(theta)
             self.estimator.set_target_policy(self.target_policy)
-            gradient, avg_return, penalization, H_star, terminate  = self.estimator.estimate(baseline_type=self.baseline_type)
+            gradient, avg_return, avg_return_b, penalization, H_star, terminate  = self.estimator.estimate(baseline_type=self.baseline_type)
+
+            #Optimal batch size:
+            N_star = self.bound.get_optimal_batchsize(J_hat_t=avg_return,J_hat_b=avg_return_b)
 
             if return_history:
                 history.append([np.copy(theta), avg_return, gradient, penalization, H_star])
@@ -248,9 +252,9 @@ class PolicyGradientLearner(object):
                 print(terminate)
 
         if return_history:
-            return theta, history
+            return theta, N_star, history
         else:
-            return theta
+            return theta, N_star
 
 class OldGradientEstimator(object):
     '''
@@ -529,7 +533,6 @@ class GradientEstimator(object):
                                 (traj_returns[:, :, np.newaxis] - baseline), axis=1), axis=0)
         print("gradient estimate %s" % gradient_estimate)
 
-
         if la.norm(penalization_gradient) >= la.norm(gradient_estimate):
             terminate = True
         else:
@@ -544,8 +547,10 @@ class GradientEstimator(object):
             print("penalization gradient %s" % penalization_gradient)
 
 
+        avg_return_t = np.mean(np.sum(traj_returns*w, axis=1))
+        avg_return_b = np.mean(np.sum(traj_returns, axis=1))
 
-        return gradient_estimate, np.mean(np.sum(traj_returns, axis=1)), penalization, H_star, terminate
+        return gradient_estimate, avg_return_t, avg_return_b, penalization, H_star, terminate
 
 class ReinforceGradientEstimator(GradientEstimator):
 

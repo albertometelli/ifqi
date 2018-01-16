@@ -192,7 +192,7 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
         self.K = np.array(K, ndmin=2)
         self.Lambda = np.array(Lambda, ndmin=2)
         self.dimension = self.K.shape[0]
-        self.n_parameters = self.K.shape[0] ** 2 + (self.Lambda.shape[0] ** 2 + self.Lambda.shape[0]) / 2
+        self.n_parameters = int(self.K.shape[0] ** 2 + (self.Lambda.shape[0] **2 + self.Lambda.shape[0]) / 2)
         self.covar = np.dot(self.Lambda, self.Lambda.T)
         self.inv_covar = la.inv(self.covar)
         self.max_state = max_state

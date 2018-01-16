@@ -39,6 +39,9 @@ class Bound(object):
     def get_optimal_horizon(self):
         pass
 
+    def get_optimal_batchsize(self,J_hat):
+        raise NotImplementedError
+
 
 class DummyBound(Bound):
 
@@ -146,11 +149,29 @@ class ChebyshevBoundRatioImportanceWeighting(ChebyshevBound):
             f = np.sqrt(1. / self.N * (1./self.delta - 1))
             ratio = np.log(1./self.gamma) / (1./self.gamma - 1)
             H_star = 2. / np.log(self.M_2) * (lambertw(ratio / f * np.exp(ratio)).real - ratio)
-            if math.isinf(H_star):
-                return sys.maxsize
+            print(self.M_2)
+            H_star = min(H_star,self.horizon)
             return int(round(H_star))
         else:
             raise NotImplementedError()
+
+    #Chebyshev + cost-sensitive
+    def get_optimal_batchsize(self,J_hat_t,J_hat_b):
+        H = self.get_optimal_horizon() if self.select_optimal_horizon else self.horizon
+        bias = -2*self.gamma**H*(1-self.gamma)
+        d_1 = J_hat_t - J_hat_b + bias
+        if d_1<=0:
+            return sys.maxsize
+        d_2 = (math.sqrt(self.M_2**H) + \
+               1)*(1-self.gamma**H)/(1-self.gamma)*math.sqrt(1./self.delta - 1)
+        return int(round(9./4*d_2**2/d_1**2))
+
+    def get_optimal_batchsize(self,J_hat_t=None,J_hat_b=None):
+        H = self.get_optimal_horizon() if self.select_optimal_horizon else self.horizon
+        d = (1-self.gamma**H)/(1-self.gamma)*math.sqrt(self.M_2**H*(1./self.delta - 1))
+        epsilon = 1e-3
+        return int(round((d/(2*epsilon))**(2./3)))
+
 
 class ChebyshevPerDecisionRatioImportanceWeighting(ChebyshevBound):
     def penalization(self):
