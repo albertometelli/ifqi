@@ -298,7 +298,7 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
              other.covar / (2*other.covar - self.covar) ** (3./2) +\
              2 * self.max_state ** 2 * other.covar * la.norm(self.K - other.K) ** 2 / (2*other.covar - self.covar) ** (5./2)) * \
              np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2 * other.covar - self.covar))
-        print("gradient M_2 %s" % np.array([np.asscalar(gK), np.asscalar(gL)]))
+        #print("gradient M_2 %s" % np.array([np.asscalar(gK), np.asscalar(gL)]))
         return np.array([np.asscalar(gK), np.asscalar(gL)])
 
     def M_2(self, other):

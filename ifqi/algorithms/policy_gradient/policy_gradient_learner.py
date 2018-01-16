@@ -31,6 +31,7 @@ class PolicyGradientLearner(object):
                  select_optimal_horizon=False,
                  adaptive_stop=False,
                  safe_stopping=False,
+                 hill_climb = False,
                  max_iter_eval=100,
                  tol_eval=-1.,
                  max_iter_opt=100,
@@ -88,7 +89,7 @@ class PolicyGradientLearner(object):
         self.max_iter_opt = max_iter_opt
         self.tol_opt = tol_opt
         self.verbose = verbose
-        self.state_index= state_index
+        self.state_index = state_index
         self.action_index = action_index
         self.reward_index = reward_index
         self.baseline_type = baseline_type
@@ -97,6 +98,7 @@ class PolicyGradientLearner(object):
         self.select_optimal_horizon = select_optimal_horizon
         self.adaptive_stop = adaptive_stop
         self.safe_stopping = safe_stopping
+        self.hill_climb = hill_climb
 
         if importance_weighting_method is not None and behavioral_policy is None:
             raise ValueError('If you want to use importance weighting you must \
@@ -236,6 +238,7 @@ class PolicyGradientLearner(object):
         if self.verbose >= 1:
             print('Ite %s: return %s - gradient norm %s' % (ite, avg_return, gradient_norm))
 
+        bound_value = np.inf
         while ite < self.max_iter_opt and gradient_norm > self.tol_opt: # and not (terminate and self.adaptive_stop):
             theta_old = np.copy(theta) #Backup for safe stopping
             theta = self.gradient_updater.update(gradient) #Gradient ascent update
@@ -246,20 +249,46 @@ class PolicyGradientLearner(object):
             self.estimator.set_target_policy(self.target_policy)
             old_gradient = gradient
             gradient, avg_return, penalization, H_star, terminate  = self.estimator.estimate(baseline_type=self.baseline_type)
+            old_bound_value = bound_value
+            bound_value = avg_return - penalization
 
             if return_history:
                 history.append([np.copy(theta), avg_return, gradient, penalization, H_star])
+
+            gradient_norm = la.norm(gradient)
 
             if self.adaptive_stop and np.dot(old_gradient, gradient) <= 0:
                #Stopping
                 if self.safe_stopping:
                     theta = np.copy(theta_old)
+                    bound_value = old_bound_value
+                    ite-=1
+                    if return_history:
+                        history = history[:-1]
                     #TODO: implement step size search
-                break
+                    
+                if self.hill_climb and self.horizon>1:
+                    #Search better horizon (only down for now)
+                    new_bound_value = -np.inf
+                    while(new_bound_value<bound_value) and self.horizon>1:
+                        self.horizon-=1
+                        self.bound.horizon = self.horizon
+                        self.estimator.horizon = self.horizon
+                        _, new_avg_return, new_penalization, _, _ = self.estimator.estimate(baseline_type=self.baseline_type) #inefficient
+                        new_bound_value = new_avg_return - new_penalization
 
-            gradient_norm = la.norm(gradient)
+                    if new_bound_value<bound_value:
+                        print('STOPPING')
+                        break                      
+                    
+                    print('%s >= %s' % (new_bound_value,bound_value))
+                    print('CONTINUING parameter exploration with new horizon %s' % (self.horizon))    
+
+                else:
+                    break
+
             ite += 1
-
+ 
             if self.verbose >= 1:
                 print('Ite %s: return %s - gradient norm %s - penalization %s' % (
                 ite, avg_return, gradient_norm, penalization))
