@@ -62,16 +62,22 @@ class OptimalModelFinder4(object):
 
         i = 0
         J_star = 0
+        Js = []
         comb_star = [0, 0, 0, 0]
         # loop performance computation
+
+        a = np.linspace(0., 1., 11)
+        convex_grid = zip(a, np.zeros(11), 1. - a, np.zeros(11))
+
         for comb in convex_grid:
             P = convex_combination(comb)
             V = value_iteration(P)
             J = np.dot(mu, V)
+            Js.append(J)
             if J > J_star:
                 J_star = J
                 comb_star = comb
-            print("iteration: {0} of {1}".format(i, len(convex_grid)))
+            print("iteration: {0} of {1} - {2}".format(i, len(convex_grid), J))
             i = i + 1
 
-        return comb_star
+        return comb_star, convex_grid, Js
