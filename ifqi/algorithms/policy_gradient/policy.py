@@ -184,12 +184,13 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
     with Cholesky as Lambda * Lambda.T
     '''
 
-    def __init__(self, K, Lambda, max_state=4.0):
+    def __init__(self, K, Lambda, epsilon = 1e-2, max_state=4.0):
         self.K = np.array(K, ndmin=2)
         self.Lambda = np.array(Lambda, ndmin=2)
+        self.epsilon = epsilon
         self.dimension = self.K.shape[0]
         self.n_parameters = int(self.K.shape[0] ** 2 + (self.Lambda.shape[0] ** 2 + self.Lambda.shape[0]) / 2)
-        self.covar = np.dot(self.Lambda, self.Lambda.T)
+        self.covar = np.dot(self.Lambda, self.Lambda.T) + np.eye(self.dimension) * epsilon
         self.inv_covar = la.inv(self.covar)
         self.max_state = max_state
         self.seed()
@@ -210,7 +211,7 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
         K, Lambda = self.from_vec_to_param(theta)
         self.K = np.array(K, ndmin=2)
         self.Lambda = np.array(Lambda, ndmin=2)
-        self.covar = np.dot(self.Lambda, self.Lambda.T)
+        self.covar = np.dot(self.Lambda, self.Lambda.T) + np.eye(self.dimension) * self.epsilon
         self.inv_covar = la.inv(self.covar)
         #self.set_parameter(K, Lambda)
 
@@ -258,6 +259,7 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
                np.exp(.5 * la.multi_dot([mean_diff, inv_covar_diff, mean_diff]))
 
     def M_inf(self, other):
+        raise NotImplementedError()
         inv_covar_diff = la.inv(other.covar - self.covar)
         param_diff = self.K - other.K
         matrix = la.multi_dot([param_diff.T, inv_covar_diff, param_diff])
@@ -267,6 +269,7 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
                np.exp(.5 * max_eigval * self.max_state ** 2)
 
     def gradient_M_inf(self, other, vectorize=True):
+        raise NotImplementedError()
         inv_covar_diff = la.inv(other.covar - self.covar)
         param_diff = self.K - other.K
         matrix = la.multi_dot([param_diff.T, inv_covar_diff, param_diff])
@@ -291,19 +294,20 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
             return gradient_K, gradient_Lambda
 
     def gradient_M_2(self, other):
-        gK = other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar))) * 2 \
+        gK = other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar)) ) * 2 \
             * self.max_state ** 2 / (2*other.covar - self.covar) * (self.K - other.K) * \
-            np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2*other.covar - self.covar))
-        gL = (-other.covar / (self.covar * np.sqrt(2*other.covar - self.covar)) + \
-             other.covar / (2*other.covar - self.covar) ** (3./2) +\
-             2 * self.max_state ** 2 * other.covar * la.norm(self.K - other.K) ** 2 / (2*other.covar - self.covar) ** (5./2)) * \
+            np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2*other.covar - self.covar ))
+        gL = (-other.covar  * self.Lambda / (self.covar ** (3./2) * np.sqrt(2*other.covar - self.covar) ) + \
+             other.covar * self.Lambda / (np.sqrt(self.covar) * (2*other.covar - self.covar ) ** (3./2)) +\
+             2 * self.max_state ** 2 * other.covar * la.norm(self.K - other.K) ** 2 * self.Lambda / (np.sqrt(self.covar) * (2*other.covar - self.covar) ** (5./2))) * \
              np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2 * other.covar - self.covar))
         #print("gradient M_2 %s" % np.array([np.asscalar(gK), np.asscalar(gL)]))
         return np.array([np.asscalar(gK), np.asscalar(gL)])
 
     def M_2(self, other):
-        return np.asscalar(other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar))) *\
-               np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2*other.covar - self.covar)))
+        M_2 = np.asscalar(other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar)) + 1e-24) *\
+               np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2*other.covar - self.covar + 1e-24)))
+        return M_2
     '''
     def M_2(self, other):
         covar_diff = 2 * other.covar - self.covar

@@ -136,8 +136,11 @@ class ChebyshevBoundRatioImportanceWeighting(ChebyshevBound):
     def penalization(self):
         bias = - (self.gamma ** self.H_star - self.gamma ** self.horizon) / (
         1 - self.gamma)
-        var = - (1 - self.gamma ** self.H_star) / \
-              (1 - self.gamma) * np.sqrt(self.M_2 ** self.H_star / self.N * (1./self.delta - 1))
+        try:
+            var = - (1 - self.gamma ** self.H_star) / \
+                (1 - self.gamma) * np.sqrt(self.M_2 ** self.H_star / self.N * (1./self.delta - 1))
+        except:
+            var = np.finfo(numpy.float64).max
         return bias + var
 
     def gradient_penalization(self):

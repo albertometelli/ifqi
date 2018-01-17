@@ -23,6 +23,7 @@ class OnOffLearner:
                 safe_stopping=False,
                 search_horizon=False,
                 adapt_batchsize=False,
+                optimize_bound=False,
                 bound='chebyshev',
                 delta=0.2,
                 importance_weighting_method='is',
@@ -53,6 +54,7 @@ class OnOffLearner:
         self.max_offline_iterations = max_offline_iterations
         self.online_iterations = online_iterations
         self.verbose = verbose
+        self.optimize_bound = optimize_bound
 
     def learn(self):
         if self.verbose: print("START ONLINE/OFFLINE LEARNING")
@@ -76,6 +78,7 @@ class OnOffLearner:
 
         if self.verbose: print("\nSTART EPOCH 0 with dataset of size %s" % (N))
         i = 0
+
         while i<self.online_iterations:
             offline_trajectory_generator = OfflineTrajectoryGenerator(dataset)
 
@@ -89,6 +92,7 @@ class OnOffLearner:
                                            safe_stopping = self.safe_stopping,
                                            hill_climb = self.search_horizon,
                                            bound=self.bound,
+                                           optimize_bound=self.optimize_bound,
                                            delta=self.delta,
                                            behavioral_policy=behavioral_policy,
                                            importance_weighting_method=self.importance_weighting_method,
@@ -121,6 +125,7 @@ class OnOffLearner:
                 dataset = np.concatenate((dataset,collect_episodes(self.mdp, behavioral_policy,
                                                    n_episodes=self.batch_size_incr)))
             else:
+                N = self.initial_batch_size
                 if self.verbose:
                     print('******** RECAP OF EPOCH %s: ********' % (i))
                     print('Initial parameter: %s' % initial_parameter)

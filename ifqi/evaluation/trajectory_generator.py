@@ -45,9 +45,12 @@ class OfflineTrajectoryGenerator(TrajectoryGenerator):
 
         self.n_trajectories = len(self.dataset)
         self.seed()
+        self.index = 0
 
     def next(self):
-        return self.dataset[self.np_random.choice(self.n_trajectories)][:self.horizon]
+        traj = self.dataset[self.index]
+        self.index = (self.index + 1) % self.n_trajectories
+        return traj
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)

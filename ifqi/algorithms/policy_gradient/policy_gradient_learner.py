@@ -32,6 +32,7 @@ class PolicyGradientLearner(object):
                  adaptive_stop=False,
                  safe_stopping=False,
                  hill_climb = False,
+                 optimize_bound = False,
                  max_iter_eval=100,
                  tol_eval=-1.,
                  max_iter_opt=100,
@@ -99,6 +100,7 @@ class PolicyGradientLearner(object):
         self.adaptive_stop = adaptive_stop
         self.safe_stopping = safe_stopping
         self.hill_climb = hill_climb
+        self.optimize_bound = optimize_bound
 
         if importance_weighting_method is not None and behavioral_policy is None:
             raise ValueError('If you want to use importance weighting you must \
@@ -173,6 +175,7 @@ class PolicyGradientLearner(object):
                                                         self.horizon,
                                                         self.select_initial_point,
                                                         self.bound,
+                                                        self.optimize_bound,
                                                         self.tol_eval,
                                                         self.max_iter_eval,
                                                         self.verbose == 2,
@@ -188,6 +191,7 @@ class PolicyGradientLearner(object):
                                                      self.horizon,
                                                      self.select_initial_point,
                                                      self.bound,
+                                                     self.optimize_bound,
                                                      self.tol_eval,
                                                      self.max_iter_eval,
                                                      self.verbose == 2,
@@ -229,6 +233,7 @@ class PolicyGradientLearner(object):
             print('Trajectory generator: %s' % self.trajectory_generator.__class__)
 
         gradient, avg_return, penalization, H_star, terminate = self.estimator.estimate(baseline_type=self.baseline_type)
+        initial_bound_value = avg_return + penalization
 
         if return_history:
             history = [[np.copy(theta), avg_return, gradient, penalization, H_star]]
@@ -238,7 +243,8 @@ class PolicyGradientLearner(object):
         if self.verbose >= 1:
             print('Ite %s: return %s - gradient norm %s' % (ite, avg_return, gradient_norm))
 
-        bound_value = np.inf
+        bound_value = initial_bound_value
+        print('Initial Bound %s \t J %s \t penaliz %s \t param %s' % (bound_value, avg_return, penalization, theta))
         while ite < self.max_iter_opt and gradient_norm > self.tol_opt: # and not (terminate and self.adaptive_stop):
             theta_old = np.copy(theta) #Backup for safe stopping
             theta = self.gradient_updater.update(gradient) #Gradient ascent update
@@ -250,14 +256,16 @@ class PolicyGradientLearner(object):
             old_gradient = gradient
             gradient, avg_return, penalization, H_star, terminate  = self.estimator.estimate(baseline_type=self.baseline_type)
             old_bound_value = bound_value
-            bound_value = avg_return - penalization
+            bound_value = avg_return + penalization
+            print('Bound %s \t J %s \t penaliz %s \t param %s' % (bound_value, avg_return, penalization, theta))
 
             if return_history:
                 history.append([np.copy(theta), avg_return, gradient, penalization, H_star])
 
             gradient_norm = la.norm(gradient)
 
-            if self.adaptive_stop and np.dot(old_gradient, gradient) <= 0:
+            if self.adaptive_stop and  bound_value < initial_bound_value: #np.dot(old_gradient, gradient) <= 0:
+
                #Stopping
                 if self.safe_stopping:
                     theta = np.copy(theta_old)
@@ -275,7 +283,7 @@ class PolicyGradientLearner(object):
                         self.bound.horizon = self.horizon
                         self.estimator.horizon = self.horizon
                         new_avg_return, new_penalization = self.estimator.evaluate()
-                        new_bound_value = new_avg_return - new_penalization
+                        new_bound_value = new_avg_return + new_penalization
 
                     if new_bound_value<bound_value:
                         print('STOPPING')
@@ -440,6 +448,7 @@ class GradientEstimator(object):
                  horizon,
                  select_initial_point=False,
                  bound=None,
+                 optimize_bound=False,
                  tol=1e-5,
                  max_iter=100,
                  verbose=True,
@@ -480,6 +489,7 @@ class GradientEstimator(object):
         self.dim = target_policy.get_n_parameters()
         self.bound = bound
         self.select_initial_point = select_initial_point
+        self.optimize_bound = optimize_bound
 
     def set_target_policy(self, target_policy):
         self.target_policy = target_policy
@@ -533,6 +543,7 @@ class GradientEstimator(object):
         else:
             penalization_gradient = penalization = 0.
 
+
         while ite < self.max_iter:
             ite += 1
 
@@ -574,14 +585,16 @@ class GradientEstimator(object):
         gradient_estimate = np.mean(np.sum(traj_log_gradients * \
                                 ws[:, :, np.newaxis] * \
                                 (traj_returns[:, :, np.newaxis] - baseline), axis=1), axis=0)
-        print("gradient estimate %s" % gradient_estimate)
+        #print("gradient estimate %s" % gradient_estimate)
 
-        if la.norm(self.gamma ** k * penalization_gradient) >= la.norm(gradient_estimate):
-            terminate = True
-        else:
-            terminate = False
+        #if la.norm(self.gamma ** k * penalization_gradient) >= la.norm(gradient_estimate):
+        #    terminate = True
+        #else:
+        #    terminate = False
+        terminate = False
 
-        gradient_estimate = gradient_estimate + self.gamma ** k * penalization_gradient
+        if self.optimize_bound:
+            gradient_estimate = gradient_estimate + self.gamma ** k * penalization_gradient
 
         if self.verbose:
             print("penalization gradient %s" % penalization_gradient)
