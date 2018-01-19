@@ -6,15 +6,15 @@ from ifqi.evaluation.trajectory_generator import OnlineTrajectoryGenerator, \
 from ifqi.algorithms.policy_gradient.policy_gradient_learner import \
     PolicyGradientLearner
 import numpy as np
+from ifqi.algorithms.policy_gradient.gradient_descent import *
 
 
 class OnOffLearner:
 
     def __init__(self,
                  mdp,
-                initial_mu,
-                initial_sigma,
-                learn_sigma = True,
+                behavioral_policy,
+                target_policy,
                 initial_batch_size=200,
                 batch_size_incr=100,
                 max_batch_size=5000,
@@ -30,13 +30,16 @@ class OnOffLearner:
                 learning_rate=0.002,
                 estimator='gpomdp',
                 gradient_updater='vanilla',
+                gradient_updater_outer='vanilla',
                 max_offline_iterations=50,
                 online_iterations=100,
+                state_index=0,
+                action_index=1,
+                reward_index=2,
                 verbose=1):
         self.mdp = mdp
-        self.initial_mu = initial_mu
-        self.initial_sigma = initial_sigma
-        self.learn_sigma = learn_sigma
+        self.behavioral_policy = behavioral_policy
+        self.target_policy = target_policy
         self.initial_batch_size=initial_batch_size
         self.batch_size_incr = batch_size_incr
         self.max_batch_size = max_batch_size
@@ -55,25 +58,33 @@ class OnOffLearner:
         self.online_iterations = online_iterations
         self.verbose = verbose
         self.optimize_bound = optimize_bound
+        self.gradient_updater_outer = gradient_updater_outer
+        self.state_index = state_index
+        self.reward_index = reward_index
+        self.action_index = action_index
+
+        if gradient_updater_outer == 'vanilla':
+            self.gradient_updater_outer = VanillaGradient(self.learning_rate, ascent=True)
+        elif gradient_updater_outer == 'adam':
+            self.gradient_updater_outer = Adam(self.learning_rate, ascent=True)
+        elif gradient_updater_outer == 'annelling':
+            self.gradient_updater_outer = AnnellingGradient(self.learning_rate, ascent=True)
+        elif gradient_updater_outer == 'rmsprop':
+            self.gradient_updater_outer = RMSProp(self.learning_rate, ascent=True)
+        elif gradient_updater_outer == 'adagrad':
+            self.gradient_updater_outer = AdaGrad(self.learning_rate, ascent=True)
+        else:
+            raise ValueError('Gradient updater not found.')
+
+        self.gradient_updater_outer.initialize(0)
 
     def learn(self):
         if self.verbose: print("START ONLINE/OFFLINE LEARNING")
         N = self.initial_batch_size
 
-        if self.learn_sigma:
-            behavioral_policy = GaussianPolicyLinearMeanCholeskyVar(self.initial_mu,
-                                                                self.initial_sigma)
-            target_policy = GaussianPolicyLinearMeanCholeskyVar(self.initial_mu,
-                                                            self.initial_sigma)
-        else:
-            behavioral_policy = GaussianPolicyLinearMean(self.initial_mu,
-                                                            self.initial_sigma)
-            target_policy =   GaussianPolicyLinearMean(self.initial_mu,
-                                                            self.initial_sigma)
-
         history = []
         offline_history_lens = [0]
-        dataset = collect_episodes(self.mdp, behavioral_policy,
+        dataset = collect_episodes(self.mdp, self.behavioral_policy,
                                    n_episodes=N)
 
         if self.verbose: print("\nSTART EPOCH 0 with dataset of size %s" % (N))
@@ -83,7 +94,7 @@ class OnOffLearner:
             offline_trajectory_generator = OfflineTrajectoryGenerator(dataset)
 
             offline_learner = PolicyGradientLearner(offline_trajectory_generator,
-                                           target_policy,
+                                                    self.target_policy,
                                            self.mdp.gamma,
                                            self.mdp.horizon,
                                            select_initial_point = self.select_initial_point,
@@ -94,24 +105,36 @@ class OnOffLearner:
                                            bound=self.bound,
                                            optimize_bound=self.optimize_bound,
                                            delta=self.delta,
-                                           behavioral_policy=behavioral_policy,
+                                           behavioral_policy=self.behavioral_policy,
                                            importance_weighting_method=self.importance_weighting_method,
                                            learning_rate=self.learning_rate,
                                            estimator=self.estimator,
                                            gradient_updater=self.gradient_updater,
                                            max_iter_opt=self.max_offline_iterations,
                                            max_iter_eval=N,
-                                           verbose=self.verbose - 1)
+                                           verbose=self.verbose - 1,
+                                                    state_index=self.state_index,
+                                                    action_index=self.action_index,
+                                                    reward_index=self.reward_index)
 
-            initial_parameter = behavioral_policy.get_parameter()
+            #TODO fix this
+            gradient, _, _, _, _ = offline_learner.estimator.estimate()
+            self.learning_rate = self.gradient_updater_outer.get_learning_rate(gradient)
+            offline_learner.gradient_updater.learning_rate = self.learning_rate
+            print('LR %s' % self.learning_rate)
+
+            initial_parameter = self.behavioral_policy.get_parameter()
 
             optimal_parameter, offline_history = offline_learner.optimize(initial_parameter,
                                                                           return_history=True)
 
+
+            print(self.learning_rate)
+
             offline_history_lens.append(len(offline_history)-1)
             history.extend(offline_history[:-1])
-            behavioral_policy.set_parameter(optimal_parameter)
-            target_policy.set_parameter(optimal_parameter)
+            self.behavioral_policy.set_parameter(optimal_parameter)
+            self.target_policy.set_parameter(optimal_parameter)
 
             actual_iterations = len(offline_history) - 1
             if self.adapt_batchsize and actual_iterations == 0:
@@ -122,7 +145,7 @@ class OnOffLearner:
                 N+=self.batch_size_incr
                 print('Collecting %s more trajectories (total: %s)' % \
                       (self.batch_size_incr, N))
-                dataset = np.concatenate((dataset,collect_episodes(self.mdp, behavioral_policy,
+                dataset = np.concatenate((dataset,collect_episodes(self.mdp, self.behavioral_policy,
                                                    n_episodes=self.batch_size_incr)))
             else:
                 N = self.initial_batch_size
@@ -137,7 +160,7 @@ class OnOffLearner:
                     print("\nSTART EPOCH %s with new dataset of size %s" % \
                           (i, N))
 
-                dataset = collect_episodes(self.mdp, behavioral_policy, n_episodes=N)
+                dataset = collect_episodes(self.mdp, self.behavioral_policy, n_episodes=N)
 
         if self.verbose: print('\nEND ONLINE/OFFLINE LEARNING')
 

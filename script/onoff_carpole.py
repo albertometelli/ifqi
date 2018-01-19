@@ -1,21 +1,26 @@
-from ifqi.envs.lqg1d import LQG1D
+from ifqi.envs.continuous_cartpole import CartPoleEnv
 from ifqi.algorithms.policy_gradient.onoff_learner import OnOffLearner
-from ifqi.algorithms.policy_gradient.policy import GaussianPolicyLinearMeanCholeskyVar
+from ifqi.algorithms.policy_gradient.policy import GaussianPolicyLinearFeatureMeanCholeskyVar
 from ifqi.evaluation.trajectory_generator import OnlineTrajectoryGenerator, \
     OfflineTrajectoryGenerator
 from ifqi.algorithms.policy_gradient.policy_gradient_learner import PolicyGradientLearner
 import matplotlib.pyplot as plt
 import numpy as np
 
-mdp = LQG1D()
-mdp.horizon = 10
-sigma = 1.
-mu = -0.2
+mdp = CartPoleEnv()
+
+def feature(state):
+    return np.array(state).ravel()
+
+initial_parameter = [0., 0., 0., 0.]
+initial_sigma = 1.
+
+target_policy = GaussianPolicyLinearFeatureMeanCholeskyVar(feature, initial_parameter, initial_sigma, max_feature=1.)
+behavioral_policy = GaussianPolicyLinearFeatureMeanCholeskyVar(feature, initial_parameter, initial_sigma, max_feature=1.)
 
 learner = OnOffLearner(mdp,
-                       mu,
-                       sigma,
-                       learn_sigma = True,
+                       behavioral_policy,
+                       target_policy,
                        initial_batch_size=200,
                        batch_size_incr=10,
                        max_batch_size=3000,
@@ -31,19 +36,22 @@ learner = OnOffLearner(mdp,
                        learning_rate=0.002,
                        estimator='gpomdp',
                        gradient_updater='vanilla',
-                       max_offline_iterations=50,
-                       online_iterations=100,
+                       gradient_updater_outer='annelling',
+                       max_offline_iterations=20,
+                       online_iterations=150,
+                       state_index=range(0,4),
+                       action_index=4,
+                       reward_index=5,
                        verbose=1)
 
 optimal_parameter, history, history_filter = learner.learn()
+history_filter = np.unique(history_filter)
 np.save('./history',history)
 np.save('./history_filter',history_filter)
 
-target_policy = GaussianPolicyLinearMeanCholeskyVar(mu, sigma)
+target_policy = GaussianPolicyLinearFeatureMeanCholeskyVar(feature, initial_parameter, initial_sigma, max_feature=1.)
 
-target_policy.set_parameter(target_policy.from_param_to_vec(-0.2, 1.))
 online_trajectory_generator = OnlineTrajectoryGenerator(mdp, target_policy)
-
 online_reinforce_cheb = PolicyGradientLearner(online_trajectory_generator,
                                                target_policy,
                                                mdp.gamma,
@@ -52,15 +60,21 @@ online_reinforce_cheb = PolicyGradientLearner(online_trajectory_generator,
                                                select_optimal_horizon=False,
                                                learning_rate=0.002,
                                                estimator='gpomdp',
-                                               gradient_updater='vanilla',
-                                               max_iter_opt=100,
+                                               gradient_updater='annelling',
+                                               max_iter_opt=150,
                                                max_iter_eval=200,
+                                               state_index=range(0,4),
+                                               action_index=4,
+                                               reward_index=5,
                                                verbose=2)
 
 initial_parameter = target_policy.get_parameter()
 optimal_parameter, history_online_reinforce = online_reinforce_cheb.optimize(
         initial_parameter, return_history=True)
 
+plt.plot(np.array(history_online_reinforce)[:,1])
+
+'''
 fig, ax = plt.subplots()
 ax.plot(np.vstack(np.array(history)[:, 0])[:, 0], 'r', label='Ours')
 ax.scatter(history_filter, np.vstack(np.array(history)[:, 0])[history_filter, 0], c='r', marker='o')
@@ -123,3 +137,4 @@ ax.plot(J_theoretical_gpomdp, 'g:', label='GPOMDP')
 ax.set_xlabel('Iteration')
 ax.set_ylabel('Expected return theoretical')
 legend = ax.legend(loc='upper right')
+'''

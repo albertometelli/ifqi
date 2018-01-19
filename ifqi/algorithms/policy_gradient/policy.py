@@ -305,8 +305,9 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
         return np.array([np.asscalar(gK), np.asscalar(gL)])
 
     def M_2(self, other):
-        M_2 = np.asscalar(other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar)) + 1e-24) *\
-               np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2*other.covar - self.covar + 1e-24)))
+        print('other covar %s \t this covar %s' % (other.covar, self.covar))
+        M_2 = np.asscalar(other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar))) *\
+               np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2*other.covar - self.covar)))
         return M_2
     '''
     def M_2(self, other):
@@ -492,11 +493,14 @@ class GaussianPolicyLinearMeanFeatures(ParametricPolicy):
         feature = np.array(self.features(state), ndmin=1)[:, np.newaxis]
         diff = action - self._mean(state)
         grad = la.multi_dot([self.inv_covar, diff, feature.T])
+        grad_Lambda = -2 * self.dimension * np.dot(self.inv_covar, self.Lambda) + 2 * \
+                            la.multi_dot([self.inv_covar, diff, diff.T, self.inv_covar, self.Lambda])
 
         if vectorize:
-            return self.from_param_to_vec(grad)
+            return self.from_param_to_vec(grad, grad_Lambda)
         else:
-            return grad
+            return grad, grad_Lambda
+
 
     def get_dimension(self):
         return self.dimension
@@ -563,3 +567,91 @@ class GaussianPolicyLinearMeanFeatures(ParametricPolicy):
             return gradient.ravel()
         else:
             return gradient
+
+class GaussianPolicyLinearFeatureMeanCholeskyVar(ParametricPolicy):
+
+    def __init__(self, feature, parameters, Lambda, epsilon=1e-2, max_feature=1.0):
+        self.feature = feature
+        self.parameters = np.array(parameters, ndmin=1).ravel()
+        self.Lambda = np.array(Lambda, ndmin=2)
+        self.epsilon = epsilon
+        self.dimension = 1
+        self.n_parameters = int(self.parameters.shape[0] + (self.Lambda.shape[0] ** 2 + self.Lambda.shape[0]) / 2)
+        self.covar = np.dot(self.Lambda, self.Lambda.T) + np.eye(self.dimension) * epsilon
+        self.inv_covar = la.inv(self.covar)
+        self.max_feature = max_feature
+        self.seed()
+
+    def _mean(self, state):
+        feature = self.feature(state)
+        feature = np.array(feature, ndmin=1)
+        return np.array(np.dot(self.parameters, feature), ndmin=1)
+
+    def draw_action(self, state, done):
+        action = self.np_random.multivariate_normal(self._mean(state),
+                                                    self.covar)
+        return action
+
+    def seed(self, seed=None):
+        self.np_random, seed = seeding.np_random(seed)
+
+    def set_parameter(self, theta):
+        parameters, Lambda = self.from_vec_to_param(theta)
+        self.parameters = parameters
+        self.Lambda = np.array(Lambda, ndmin=2)
+        self.covar = np.dot(self.Lambda, self.Lambda.T) + np.eye(self.dimension) * self.epsilon
+        self.inv_covar = la.inv(self.covar)
+
+    def from_vec_to_param(self, theta):
+        parameters = theta[:self.parameters.shape[0]].ravel()
+        Lambda = np.zeros(self.Lambda.shape)
+        Lambda[np.tril_indices(self.Lambda.shape[0])] = theta[self.parameters.shape[0]:]
+        return parameters, Lambda
+
+    def from_param_to_vec(self, parameters, Lambda):
+        parameters = np.array(parameters).ravel()
+        Lambda = np.array(Lambda, ndmin=2)
+        return np.concatenate([parameters, Lambda[np.tril_indices(Lambda.shape[0])].ravel()])
+
+    def get_parameter(self):
+        return self.from_param_to_vec(self.parameters, self.Lambda)
+
+    def pdf(self, state, action):
+        return multivariate_normal.pdf(action, self._mean(state), self.covar)
+
+    def gradient_log(self, state, action, vectorize=True):
+        action = np.array(action, ndmin=1)[:, np.newaxis]
+        feature = np.array(self.feature(state), ndmin=1)[:, np.newaxis]
+        diff = action - self._mean(state)
+        grad = la.multi_dot([self.inv_covar, diff, feature.T])
+        grad_Lambda = -2 * self.dimension * np.dot(self.inv_covar, self.Lambda) + 2 * \
+                            la.multi_dot([self.inv_covar, diff, diff.T, self.inv_covar, self.Lambda])
+
+        if vectorize:
+            return self.from_param_to_vec(grad, grad_Lambda)
+        else:
+            return grad, grad_Lambda
+
+
+    def get_dimension(self):
+        return self.dimension
+
+    def get_n_parameters(self):
+        return self.n_parameters
+
+    def gradient_M_2(self, other):
+        gK = other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar)) ) * 2 \
+            * self.max_feature ** 2 / (2*other.covar - self.covar) * (self.parameters - other.parameters) * \
+            np.exp(la.norm(self.parameters - other.parameters) ** 2 * self.max_feature ** 2 / (2*other.covar - self.covar ))
+        gL = (-other.covar  * self.Lambda / (self.covar ** (3./2) * np.sqrt(2*other.covar - self.covar) ) + \
+             other.covar * self.Lambda / (np.sqrt(self.covar) * (2*other.covar - self.covar ) ** (3./2)) +\
+             2 * self.max_feature ** 2 * other.covar * la.norm(self.parameters - other.parameters) ** 2 * self.Lambda / (np.sqrt(self.covar) * (2*other.covar - self.covar) ** (5./2))) * \
+             np.exp(la.norm(self.parameters - other.parameters) ** 2 * self.max_feature ** 2 / (2 * other.covar - self.covar))
+
+        return np.array([gK.ravel(), np.asscalar(gL)])
+
+    def M_2(self, other):
+        print('other covar %s \t this covar %s' % (other.covar, self.covar))
+        M_2 = np.asscalar(other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar))) *\
+               np.exp(la.norm(self.parameters - other.parameters) ** 2 * self.max_feature ** 2 / (2*other.covar - self.covar)))
+        return M_2
