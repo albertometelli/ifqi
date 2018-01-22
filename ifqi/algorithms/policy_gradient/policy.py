@@ -658,7 +658,7 @@ class GaussianPolicyLinearFeatureMeanCholeskyVar(ParametricPolicy):
         return np.array([gK.ravel(), np.asscalar(gL)])
 
     def M_2(self, other):
-        print('other covar %s \t this covar %s' % (other.covar, self.covar))
+        #print('other covar %s \t this covar %s' % (other.covar, self.covar))
         M_2 = np.asscalar(other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar))) *\
                np.exp(la.norm(self.parameters - other.parameters) ** 2 * self.max_feature ** 2 / (2*other.covar - self.covar)))
         return M_2

@@ -19,6 +19,7 @@ class OnOffLearner:
                 batch_size_incr=100,
                 max_batch_size=5000,
                 select_initial_point=False,
+                select_optimal_horizon=False,
                 adaptive_stop=True,
                 safe_stopping=False,
                 search_horizon=False,
@@ -62,6 +63,7 @@ class OnOffLearner:
         self.state_index = state_index
         self.reward_index = reward_index
         self.action_index = action_index
+        self.select_optimal_horizon = select_optimal_horizon
 
         if gradient_updater_outer == 'vanilla':
             self.gradient_updater_outer = VanillaGradient(self.learning_rate, ascent=True)
@@ -98,7 +100,7 @@ class OnOffLearner:
                                            self.mdp.gamma,
                                            self.mdp.horizon,
                                            select_initial_point = self.select_initial_point,
-                                           select_optimal_horizon=False,
+                                           select_optimal_horizon=self.select_optimal_horizon,
                                            adaptive_stop=self.adaptive_stop,
                                            safe_stopping = self.safe_stopping,
                                            hill_climb = self.search_horizon,

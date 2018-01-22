@@ -536,6 +536,8 @@ class GradientEstimator(object):
         if self.verbose:
             print("Hstar %s" % H_star)
 
+        print('Hstar %s' % H_star)
+        print('M2 %s '% self.bound.M_2)
 
 
         if self.bound is not None:

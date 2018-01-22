@@ -21,6 +21,11 @@ def build_Chebyshev_bound(is_method, N, delta, gamma, behavioral_policy, target_
                                                       behavioral_policy,
                                                       target_policy, horizon,
                                                       select_optimal_horizon)
+    if isinstance(is_method, PerDecisionRatioImportanceWeighting):
+        return ChebyshevPerDecisionRatioImportanceWeighting(N, delta, gamma,
+                                               behavioral_policy,
+                                               target_policy, horizon,
+                                               select_optimal_horizon)
     raise NotImplementedError()
 
 def build_Bernstein_bound(is_method, N, delta, gamma, behavioral_policy, target_policy, horizon, select_optimal_horizon):
