@@ -3,6 +3,10 @@ from gym.utils import seeding
 from scipy.stats import multivariate_normal
 import numpy.linalg as la
 from ifqi.utils.tictoc import *
+import tensorflow as tf
+from ifqi.baselines_adaptor.mlp_policy import MlpPolicy as _MlpPolicy
+import baselines.common.tf_util as tf_util
+import copy
 
 class Policy(object):
     '''
@@ -17,6 +21,9 @@ class Policy(object):
 
     def get_dimension(self):
         pass
+ 
+    def get_copy(self):
+        return copy.deepcopy(self)
 
 class ParametricPolicy(Policy):
 
@@ -655,3 +662,89 @@ class GaussianPolicyLinearFeatureMeanCholeskyVar(ParametricPolicy):
         M_2 = np.asscalar(other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar))) *\
                np.exp(la.norm(self.parameters - other.parameters) ** 2 * self.max_feature ** 2 / (2*other.covar - self.covar)))
         return M_2
+
+
+class FactGaussianPolicyNNMeanVar(ParametricPolicy):
+
+    #Static attribute
+    copy_id = 0
+
+    def __init__(self, name, sess, ob_space, ac_space, hid_size=2,
+                 num_hid_layers=2):
+        self.ob_space = ob_space
+        self.ac_space = ac_space
+        self.hid_size = hid_size
+        self.num_hid_layers = num_hid_layers
+        self.fixed_var = True
+        self.name = name
+        print(self.name + '_'+str(self.copy_id))
+        self._pol = _MlpPolicy(self.name + '_'+str(self.copy_id),
+                                 self.ob_space,
+                                 self.ac_space,
+                                 self.hid_size,
+                                 self.num_hid_layers,
+                                 gaussian_fixed_var=self.fixed_var)
+        self.max_phi = 1 #true for tanh outer activations
+        self.sess = sess
+        sess.run(tf.global_variables_initializer())
+
+
+    def draw_action(self, state, done):
+        return self._pol.act(stochastic=True,ob=state)
+
+    def pdf(self, state, action):
+        state = np.atleast_1d(state)
+        action = np.atleast_1d(action)
+        return self._pol.get_density(state,action)
+
+    def get_dimension(self):
+        return len(self.ac_space.shape)
+
+    def gradient_log(self, state, action, vectorize=True):
+        action = np.reshape(action,self.ac_space.shape)
+        return self._pol.get_score(state[None],action[None])
+
+    def get_parameter(self):
+        return self._pol.get_param()
+
+    def get_all_parameters(self):
+        return self._pol.get_param()
+
+    def set_parameter(self,param,outer=False):
+        self._pol.set_param(param,self.sess)
+
+    def get_n_parameters(self):
+        return  len(self.get_parameter())
+
+    def mean(self,state):
+        return self._pol.get_mean(state)
+
+    @property
+    def covar(self):
+        return self._pol.get_std()**2
+
+    @property
+    def K(self):
+        return self._pol.get_theta()
+
+    def M_2(self,other):
+        assert isinstance(other,FactGaussianPolicyNNMeanVar)
+        assert len(other.K)==len(self.K)
+        M_2 = other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar))) *\
+        np.exp(la.norm(self.K - other.K) ** 2 * 2*self.max_phi ** 2 / (2*other.covar - self.covar))
+        return np.prod(M_2)
+
+    def gradient_M_2(self,other):
+        raise NotImplementedError
+
+    def get_copy(self):
+        FactGaussianPolicyNNMeanVar.copy_id+=1
+        a_copy = FactGaussianPolicyNNMeanVar(name = self.name,
+                                             sess = self.sess,
+                                             ob_space = self.ob_space,
+                                             ac_space = self.ac_space,
+                                             hid_size = self.hid_size,
+                                             num_hid_layers =
+                                             self.num_hid_layers)
+        a_copy.set_parameter(self.get_all_parameters(),outer=False)
+        return a_copy

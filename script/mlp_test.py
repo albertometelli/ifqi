@@ -1,13 +1,16 @@
-from ifqi.envs.continuous_cartpole import CartPoleEnv
+from ifqi.envs.continuous_mountain_car import Continuous_MountainCarEnv
+from ifqi.envs.lqg1d import LQG1D
 from ifqi.algorithms.policy_gradient.onoff_learner import OnOffLearner
-from ifqi.algorithms.policy_gradient.policy import GaussianPolicyLinearFeatureMeanCholeskyVar
+from ifqi.algorithms.policy_gradient.policy import GaussianPolicyLinearFeatureMeanCholeskyVar, \
+        FactGaussianPolicyNNMeanVar
 from ifqi.evaluation.trajectory_generator import OnlineTrajectoryGenerator, \
     OfflineTrajectoryGenerator
 from ifqi.algorithms.policy_gradient.policy_gradient_learner import PolicyGradientLearner
 import matplotlib.pyplot as plt
 import numpy as np
+from ifqi.baselines_adaptor.util import get_session
 
-mdp = CartPoleEnv()
+mdp = LQG1D()
 
 def feature(state):
     return np.array(state).ravel()
@@ -15,8 +18,23 @@ def feature(state):
 initial_parameter = [0., 0., 0., 0.]
 initial_sigma = 1.
 
-target_policy = GaussianPolicyLinearFeatureMeanCholeskyVar(feature, initial_parameter, initial_sigma, max_feature=1.)
-behavioral_policy = GaussianPolicyLinearFeatureMeanCholeskyVar(feature, initial_parameter, initial_sigma, max_feature=1.)
+#target_policy = GaussianPolicyLinearFeatureMeanCholeskyVar(feature, initial_parameter, initial_sigma, max_feature=1.)
+#behavioral_policy = GaussianPolicyLinearFeatureMeanCholeskyVar(feature, initial_parameter, initial_sigma, max_feature=1.)
+
+sess = get_session()
+target_policy = FactGaussianPolicyNNMeanVar('target',
+                                            sess,
+                                            mdp.observation_space,
+                                            mdp.action_space,
+                                            hid_size=2,
+                                            num_hid_layers=2)
+
+behavioral_policy = FactGaussianPolicyNNMeanVar('behavioral',
+                                            sess,
+                                            mdp.observation_space,
+                                            mdp.action_space,
+                                            hid_size=2,
+                                            num_hid_layers=2)
 
 learner = OnOffLearner(mdp,
                        behavioral_policy,
@@ -37,10 +55,10 @@ learner = OnOffLearner(mdp,
                        estimator='gpomdp',
                        gradient_updater='vanilla',
                        gradient_updater_outer='annelling',
-                       max_offline_iterations=20,
+                       max_offline_iterations=3,
                        online_iterations=150,
-                       state_index=range(0,4),
-                       action_index=4,
+                       state_index=0,#range(0,4),
+                       action_index=1,#4,
                        reward_index=5,
                        verbose=1)
 

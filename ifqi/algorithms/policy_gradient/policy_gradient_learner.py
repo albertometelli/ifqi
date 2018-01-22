@@ -80,8 +80,9 @@ class PolicyGradientLearner(object):
         '''
 
         self.trajectory_generator = trajectory_generator
-        self.behavioral_policy = copy.deepcopy(behavioral_policy)
-        self.target_policy = copy.deepcopy(target_policy)
+        self.behavioral_policy = behavioral_policy.get_copy()if \
+                behavioral_policy is not None else None
+        self.target_policy = target_policy.get_copy()
         self.gamma = gamma
         self.horizon = horizon
         self.learning_rate = learning_rate
