@@ -1,4 +1,4 @@
-from ifqi.envs.continuous_mountain_car import Continuous_MountainCarEnv
+from ifqi.envs.continuous_cartpole import CartPoleEnv
 from ifqi.envs.lqg1d import LQG1D
 from ifqi.algorithms.policy_gradient.onoff_learner import OnOffLearner
 from ifqi.algorithms.policy_gradient.policy import GaussianPolicyLinearFeatureMeanCholeskyVar, \
@@ -10,16 +10,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 from ifqi.baselines_adaptor.util import get_session
 
-mdp = LQG1D()
+#mdp = LQG1D()
+mdp = CartPoleEnv()
 
 def feature(state):
     return np.array(state).ravel()
 
+'''
 initial_parameter = [0., 0., 0., 0.]
 initial_sigma = 1.
-
 #target_policy = GaussianPolicyLinearFeatureMeanCholeskyVar(feature, initial_parameter, initial_sigma, max_feature=1.)
 #behavioral_policy = GaussianPolicyLinearFeatureMeanCholeskyVar(feature, initial_parameter, initial_sigma, max_feature=1.)
+'''
 
 sess = get_session()
 target_policy = FactGaussianPolicyNNMeanVar('target',
@@ -47,7 +49,7 @@ learner = OnOffLearner(mdp,
                        optimize_bound=False,
                        safe_stopping=True,
                        search_horizon=False,
-                       adapt_batchsize=True,
+                       adapt_batchsize=False,
                        bound='chebyshev',
                        delta=0.2,
                        importance_weighting_method='is',
@@ -56,17 +58,28 @@ learner = OnOffLearner(mdp,
                        gradient_updater='vanilla',
                        gradient_updater_outer='annelling',
                        max_offline_iterations=3,
-                       online_iterations=150,
-                       state_index=0,#range(0,4),
-                       action_index=1,#4,
-                       reward_index=5,
+                       online_iterations=10,
+                       state_index=range(0,len(mdp.observation_space.low)),
+                       action_index=range(len(mdp.observation_space.low),
+                                          len(mdp.observation_space.low)+len(mdp.action_space.low)),
+                       reward_index=len(mdp.observation_space.low)+len(mdp.action_space.low),
                        verbose=1)
 
 optimal_parameter, history, history_filter = learner.learn()
 history_filter = np.unique(history_filter)
+
 np.save('./history',history)
 np.save('./history_filter',history_filter)
 
+fig, ax = plt.subplots()
+ax.plot(np.array(history)[:, 1], 'g', label='Ours')
+ax.scatter(history_filter, np.vstack(np.array(history)[:, 1])[history_filter], c='g', marker='o')
+ax.set_xlabel('Iteration')
+ax.set_ylabel('Avg return')
+legend = ax.legend(loc='upper right')
+plt.show()
+
+'''
 target_policy = GaussianPolicyLinearFeatureMeanCholeskyVar(feature, initial_parameter, initial_sigma, max_feature=1.)
 
 online_trajectory_generator = OnlineTrajectoryGenerator(mdp, target_policy)
@@ -91,6 +104,7 @@ optimal_parameter, history_online_reinforce = online_reinforce_cheb.optimize(
         initial_parameter, return_history=True)
 
 plt.plot(np.array(history_online_reinforce)[:,1])
+'''
 
 '''
 fig, ax = plt.subplots()

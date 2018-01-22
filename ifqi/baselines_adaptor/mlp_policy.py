@@ -127,9 +127,9 @@ class MlpPolicy(object):
 
     def get_score(self,state,action,outer=False):
         if outer:
-            return self._get_outer_score(state[None],action)[0]
+            return self._get_outer_score(state[None],action[None])[0]
         else:
-            return self._get_score(state[None],action)[0]
+            return self._get_score(state[None],action[None])[0]
 
     def get_density(self,state,action):
         return self._get_density(state[None],action[None])[0]

@@ -688,21 +688,27 @@ class FactGaussianPolicyNNMeanVar(ParametricPolicy):
         self.sess = sess
         sess.run(tf.global_variables_initializer())
 
+    def reshape_s(self,state):
+        return np.array(state).reshape(self.ob_space.shape)
+
+    def reshape_a(self,action):
+        return np.array(action).reshape(self.ac_space.shape)
 
     def draw_action(self, state, done):
-        return self._pol.act(stochastic=True,ob=state)
+        return self._pol.act(stochastic=True,ob=self.reshape_s(state))
 
     def pdf(self, state, action):
-        state = np.atleast_1d(state)
-        action = np.atleast_1d(action)
+        state = self.reshape_s(state)
+        action = self.reshape_a(action)
         return self._pol.get_density(state,action)
 
     def get_dimension(self):
         return len(self.ac_space.shape)
 
     def gradient_log(self, state, action, vectorize=True):
-        action = np.reshape(action,self.ac_space.shape)
-        return self._pol.get_score(state[None],action[None])
+        state = self.reshape_s(state)
+        action = self.reshape_a(action)
+        return self._pol.get_score(state,action)
 
     def get_parameter(self):
         return self._pol.get_param()
@@ -717,6 +723,7 @@ class FactGaussianPolicyNNMeanVar(ParametricPolicy):
         return  len(self.get_parameter())
 
     def mean(self,state):
+        state = self.reshape_s(state)
         return self._pol.get_mean(state)
 
     @property
@@ -735,7 +742,7 @@ class FactGaussianPolicyNNMeanVar(ParametricPolicy):
         return np.prod(M_2)
 
     def gradient_M_2(self,other):
-        raise NotImplementedError
+        return 0 #Not implemented!!
 
     def get_copy(self):
         FactGaussianPolicyNNMeanVar.copy_id+=1
