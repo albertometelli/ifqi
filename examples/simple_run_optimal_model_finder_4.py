@@ -15,6 +15,8 @@ grid_num = 5
 threshold = 0.00001
 
 mdp = RaceTrackConfigurableEnv(track_file='track0easy', reward_fail_abs=0, pfail = 0.5)
+# mdp = RaceTrackConfigurableEnv(track_file='track0_start')
+
 print('nS: {0}'.format(mdp.nS))
 print('MDP instantiated')
 

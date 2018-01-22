@@ -836,6 +836,16 @@ class SPMI(object):
         print('policy dist sup: {0}'.format(p_dist_sup))
         print('policy dist mean: {0}'.format(p_dist_mean))
 
+        # coefficient computation and print
+        if isinstance(self.model_chooser, SetModelChooser) and len(self.model_chooser.model_set) == 2:
+            P = self.mdp.P_sa
+            P1 = self.model_chooser.model_set[0].get_matrix()
+            P2 = self.model_chooser.model_set[1].get_matrix()
+            k = (P - P2) / (P1 - P2 + 1e-24)
+            k = np.max(k)
+            print('\ncurrent k: {0}'.format(k))
+            self.coefficients.append(k)
+
         # iteration update
         self.iteration = self.iteration + 1
 
@@ -874,6 +884,16 @@ class SPMI(object):
         print('model dist sup: {0}'.format(m_dist_sup))
         print('model dist mean: {0}'.format(m_dist_mean))
 
+        # coefficient computation and print
+        if isinstance(self.model_chooser, SetModelChooser) and len(self.model_chooser.model_set) == 2:
+            P = self.mdp.P_sa
+            P1 = self.model_chooser.model_set[0].get_matrix()
+            P2 = self.model_chooser.model_set[1].get_matrix()
+            k = (P - P2) / (P1 - P2 + 1e-24)
+            k = np.max(k)
+            print('\ncurrent k: {0}'.format(k))
+            self.coefficients.append(k)
+
         # iteration update
         self.iteration = self.iteration + 1
 
@@ -911,6 +931,17 @@ class SPMI(object):
                           self.m_dist_sup, self.m_dist_mean,
                           self.alfas, self.betas, self.p_change, self.m_change]
 
+        if isinstance(self.model_chooser, SetModelChooser):
+
+            header_string = header_string + ';coefficient'
+
+            execution_data = [self.iterations, self.evaluations,
+                              self.p_advantages, self.m_advantages,
+                              self.p_dist_sup, self.p_dist_mean,
+                              self.m_dist_sup, self.m_dist_mean,
+                              self.alfas, self.betas, self.p_change,
+                              self.m_change, self.coefficients]
+
         execution_data = np.array(execution_data).T
 
         if entries is not None:
@@ -919,4 +950,4 @@ class SPMI(object):
 
 
         np.savetxt(dir_path + '/' + file_name, execution_data,
-                   delimiter=';', header=header_string, fmt='%.4e')
+                   delimiter=';', header=header_string, fmt='%.30e')

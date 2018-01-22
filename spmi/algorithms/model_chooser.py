@@ -29,7 +29,7 @@ class GreedyModelChooser(ModelChooser):
 
         return er_advantage, distance_sup, distance_mean, target_model
 
-    def greedy_model(self, U, tol=1e-3):
+    def greedy_model(self, U, tol=0.0):
         greedy_model_rep = {s: {a: [] for a in range(self.nA)} for s in range(self.nS)}
         # loop to give maximum probability to the greedy action,
         # if more than one is greedy then uniform on the greedy actions
@@ -41,7 +41,7 @@ class GreedyModelChooser(ModelChooser):
 
                 # uniform if more than one greedy
                 max = np.max(u_array)
-                s1 = np.argwhere(np.abs(u_array - max) < tol).flatten()
+                s1 = np.argwhere(np.abs(u_array - max) <= tol).flatten()
                 probabilities[s1] = 1. / len(s1)
                 greedy_model_rep[s][a] = zip(probabilities, range(self.nS))
 
@@ -88,7 +88,7 @@ class DoNotCreateTransitionsGreedyModelChooser(ModelChooser):
 
         return er_advantage, distance_sup, distance_mean, target_model
 
-    def dnct_greedy_model(self, U, tol=1e-8):
+    def dnct_greedy_model(self, U, tol=0.0):
         greedy_model_rep = {s: {a: [] for a in range(self.nA)} for s in
                             range(self.nS)}
 
@@ -107,7 +107,7 @@ class DoNotCreateTransitionsGreedyModelChooser(ModelChooser):
                 # uniform if more than one greedy
                 max = np.max(u_array)
 
-                s1 = np.argwhere(np.abs(u_array - max) < tol).flatten()
+                s1 = np.argwhere(np.abs(u_array - max) <= tol).flatten()
                 probabilities[s1] = 1. / len(s1)
                 greedy_model_rep[s][a] = zip(probabilities, range(self.nS))
 

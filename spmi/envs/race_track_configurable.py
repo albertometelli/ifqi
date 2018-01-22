@@ -58,9 +58,11 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.P_sas = np.zeros(shape=(nS, nA, nS))
         self.P_sa = np.zeros(shape=(nS * nA, nS))
 
+        # min_psucc 0.797 to have combination optimum with track0
+
         self.max_psucc = max_psucc = 0.9
         self.max_psucc2 = max_psucc2 = 0.9
-        self.min_psucc = min_psucc = 0.797
+        self.min_psucc = min_psucc = 0.7
         self.min_psucc2 = min_psucc2 = 0.1
         self.max_speed = max_speed = 2 * (max(vel) ** 2)
 
@@ -270,6 +272,8 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
 
     def set_model(self, model):
         self.P = model
+        self.P_sas = self.p_sas(self.P)
+        self.P_sa = self.p_sa(self.P_sas)
 
     # from (vx,vy) to the set of valid actions
     def _valid_a(self, vx, vy):

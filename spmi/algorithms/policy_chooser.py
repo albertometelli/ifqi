@@ -29,7 +29,7 @@ class GreedyPolicyChooser(PolicyChooser):
 
         return er_advantage, distance_sup, distance_mean, target_policy
 
-    def greedy_policy(self, Q, tol=1e-3):
+    def greedy_policy(self, Q, tol=0.0):
 
         greedy_policy_rep = {s: [] for s in range(self.nS)}
         # loop to give maximum probability to the greedy action,
@@ -40,7 +40,7 @@ class GreedyPolicyChooser(PolicyChooser):
 
             # uniform if more than one greedy
             max = np.max(q_array)
-            a = np.argwhere(np.abs(q_array - max) < tol).flatten()
+            a = np.argwhere(np.abs(q_array - max) <= tol).flatten()
             probabilities[a] = 1. / len(a)
             greedy_policy_rep[s] = probabilities
 
@@ -88,7 +88,7 @@ class DoNotCreateTransitionsGreedyPolicyChooser(PolicyChooser):
 
         return er_advantage, distance_sup, distance_mean, target_policy
 
-    def dnct_greedy_policy(self, Q, tol=1e-8):
+    def dnct_greedy_policy(self, Q, tol=0.0):
         greedy_policy_rep = {s: [] for s in range(self.nS)}
 
         for s in range(self.nS):
@@ -104,7 +104,7 @@ class DoNotCreateTransitionsGreedyPolicyChooser(PolicyChooser):
 
             # uniform if more than one greedy
             max = np.max(q_array)
-            s1 = np.argwhere(np.abs(q_array - max) < tol).flatten()
+            s1 = np.argwhere(np.abs(q_array - max) <= tol).flatten()
             probabilities[s1] = 1. / len(s1)
             greedy_policy_rep[s] = probabilities
 
