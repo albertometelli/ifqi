@@ -12,6 +12,9 @@ class TrajectoryGenerator(object):
     def next(self):
         pass
 
+    def next_n(self, n):
+        return [self.next() for i in range(n)]
+
     def set_policy(self, policy):
         pass
 

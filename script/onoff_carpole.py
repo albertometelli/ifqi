@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 mdp = CartPoleEnv()
+mdp.horizon = 500
 
 def feature(state):
     return np.array(state).ravel()
@@ -21,28 +22,29 @@ behavioral_policy = GaussianPolicyLinearFeatureMeanCholeskyVar(feature, initial_
 learner = OnOffLearner(mdp,
                        behavioral_policy,
                        target_policy,
-                       initial_batch_size=200,
+                       initial_batch_size=100,
                        batch_size_incr=10,
                        max_batch_size=3000,
                        select_initial_point=False,
+                       select_optimal_horizon=False,
                        adaptive_stop=True,
                        optimize_bound=False,
                        safe_stopping=True,
-                       search_horizon=False,
+                       search_horizon=True,
                        adapt_batchsize=True,
                        bound='chebyshev',
                        delta=0.2,
-                       importance_weighting_method='is',
-                       learning_rate=0.002,
+                       importance_weighting_method='pdis',
+                       learning_rate=0.001,
                        estimator='gpomdp',
                        gradient_updater='vanilla',
-                       gradient_updater_outer='annelling',
-                       max_offline_iterations=20,
-                       online_iterations=150,
+                       gradient_updater_outer='vanilla',
+                       max_offline_iterations=50,
+                       online_iterations=500,
                        state_index=range(0,4),
                        action_index=4,
                        reward_index=5,
-                       verbose=1)
+                       verbose=2)
 
 optimal_parameter, history, history_filter = learner.learn()
 history_filter = np.unique(history_filter)
@@ -58,11 +60,11 @@ online_reinforce_cheb = PolicyGradientLearner(online_trajectory_generator,
                                                mdp.horizon,
                                                select_initial_point=False,
                                                select_optimal_horizon=False,
-                                               learning_rate=0.002,
+                                               learning_rate=0.01,
                                                estimator='gpomdp',
-                                               gradient_updater='annelling',
-                                               max_iter_opt=150,
-                                               max_iter_eval=200,
+                                               gradient_updater='vanilla',
+                                               max_iter_opt=500,
+                                               max_iter_eval=100,
                                                state_index=range(0,4),
                                                action_index=4,
                                                reward_index=5,
@@ -73,6 +75,7 @@ optimal_parameter, history_online_reinforce = online_reinforce_cheb.optimize(
         initial_parameter, return_history=True)
 
 plt.plot(np.array(history_online_reinforce)[:,1])
+plt.plot(np.array(history)[history_filter, 1])
 
 '''
 fig, ax = plt.subplots()

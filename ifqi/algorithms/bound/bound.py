@@ -7,7 +7,7 @@ import scipy.stats as sts
 
 def variance_pdis_bound(M_2, H, gamma):
     return M_2 * (1 - (gamma ** 2 * M_2) ** H) / (1 - (gamma ** 2 * M_2)) + \
-                2 * gamma * M_2 / (1 - gamma) * (1 - (gamma ** 2 * M_2) ** (H - 1)) / (1 - (gamma ** 2 * M_2)) + \
+                2 * gamma * M_2 / (1 - gamma) * (1 - (gamma ** 2 * M_2) ** (H - 1)) / (1 - (gamma ** 2 * M_2)) - \
                 2 * gamma ** H * M_2 / (1 - gamma) * (1 - (gamma * M_2) ** (H - 1)) / (1 - (gamma * M_2))
 
 def derivative_variance_pdis_bound(M_2, H, gamma):
@@ -140,7 +140,8 @@ class ChebyshevBoundRatioImportanceWeighting(ChebyshevBound):
             var = - (1 - self.gamma ** self.H_star) / \
                 (1 - self.gamma) * np.sqrt(self.M_2 ** self.H_star / self.N * (1./self.delta - 1))
         except:
-            var = np.finfo(numpy.float64).max
+            var = np.finfo(np.float64).max
+
         return bias + var
 
     def gradient_penalization(self):
@@ -182,8 +183,7 @@ class ChebyshevPerDecisionRatioImportanceWeighting(ChebyshevBound):
         bias = - (self.gamma ** self.H_star - self.gamma ** self.horizon) / (
         1 - self.gamma)
         var_bound = variance_pdis_bound(self.M_2, self.H_star, self.gamma)
-        var = - (1 - self.gamma ** self.H_star) / \
-              (1 - self.gamma) * np.sqrt(var_bound / self.N * (1./self.delta - 1))
+        var = - np.sqrt(var_bound / self.N * (1./self.delta - 1))
         return bias + var
 
     def gradient_penalization(self):
