@@ -41,11 +41,13 @@ learner = OnOffLearner(mdp,
                        gradient_updater='vanilla',
                        gradient_updater_outer='vanilla',
                        max_offline_iterations=50,
-                       online_iterations=500,
+                       online_iterations=3,
                        state_index=range(0,4),
                        action_index=4,
                        reward_index=5,
-                       verbose=2)
+                       verbose=2,
+                       file_offline_epochs='cartpole_offline.csv',
+                       file_online_epochs='cartpole_online.csv')
 
 optimal_parameter, history, history_filter = learner.learn()
 history_filter = np.unique(history_filter)
@@ -69,11 +71,13 @@ online_reinforce_cheb = PolicyGradientLearner(online_trajectory_generator,
                                                state_index=range(0,4),
                                                action_index=4,
                                                reward_index=5,
-                                               verbose=2)
+                                               verbose=2,
+                                               max_reward=mdp.max_reward,
+                                              min_reward=mdp.min_reward)
 
 initial_parameter = target_policy.get_parameter()
 optimal_parameter, history_online_reinforce = online_reinforce_cheb.optimize(
-        initial_parameter, return_history=True)
+        initial_parameter, return_history=2)
 
 plt.plot(np.array(history_online_reinforce)[:,1])
 plt.plot(np.array(history)[history_filter, 1])

@@ -8,6 +8,7 @@ from ifqi.algorithms.policy_gradient.policy_gradient_learner import \
 import numpy as np
 from ifqi.algorithms.policy_gradient.gradient_descent import *
 from tabulate import tabulate
+import csv
 
 
 class OnOffLearner:
@@ -39,7 +40,10 @@ class OnOffLearner:
                 state_index=0,
                 action_index=1,
                 reward_index=2,
-                verbose=1):
+                verbose=1,
+                file_online_epochs=None,
+                 file_offline_epochs=None,
+                 return_history=1):
         self.mdp = mdp
         self.behavioral_policy = behavioral_policy
         self.target_policy = target_policy
@@ -67,6 +71,9 @@ class OnOffLearner:
         self.action_index = action_index
         self.select_optimal_horizon = select_optimal_horizon
         self.search_step_size = search_step_size
+        self.file_online_epochs = file_online_epochs
+        self.file_offline_epochs = file_offline_epochs
+        self.return_history = return_history
 
         if gradient_updater_outer == 'vanilla':
             self.gradient_updater_outer = VanillaGradient(self.learning_rate, ascent=True)
@@ -92,10 +99,19 @@ class OnOffLearner:
         dataset = collect_episodes(self.mdp, self.behavioral_policy,
                                    n_episodes=N)
 
-        if self.verbose: print("\nSTART EPOCH 0 with dataset of size %s" % (N))
+        if self.file_online_epochs is not None:
+            file_online_epochs_desc = open(self.file_online_epochs, 'w')
+            file_online_epochs_writer = csv.writer(file_online_epochs_desc, delimiter=',')
+        if self.file_offline_epochs is not None:
+            file_offline_epochs_desc = open(self.file_offline_epochs, 'w')
+            file_offline_epochs_writer = csv.writer(file_offline_epochs_desc, delimiter=',')
+
+        if self.verbose:
+            print("\nSTART EPOCH 0 with dataset of size %s" % (N))
+
         i = 0
 
-        while i<self.online_iterations:
+        while i < self.online_iterations:
             offline_trajectory_generator = OfflineTrajectoryGenerator(dataset)
 
             offline_learner = PolicyGradientLearner(offline_trajectory_generator,
@@ -121,29 +137,28 @@ class OnOffLearner:
                                            verbose=self.verbose - 1,
                                                     state_index=self.state_index,
                                                     action_index=self.action_index,
-                                                    reward_index=self.reward_index)
+                                                    reward_index=self.reward_index,
+                                                    max_reward=self.mdp.max_reward,
+                                                    min_reward=self.mdp.min_reward)
 
-
-
-            gradient, _, _, _, _ = offline_learner.estimator.estimate()
+            gradient, _, _, _, _, _, _ = offline_learner.estimator.estimate()
             self.learning_rate = self.gradient_updater_outer.get_learning_rate(gradient)
             offline_learner.gradient_updater.learning_rate = self.learning_rate
 
             initial_parameter = self.behavioral_policy.get_parameter()
 
             optimal_parameter, offline_history = offline_learner.optimize(initial_parameter,
-                                                                          return_history=True)
+                                                                          return_history=self.return_history)
 
-
-            offline_history_lens.append(len(offline_history)-1)
+            offline_iterations = len(offline_history) - 1
+            offline_history_lens.append(offline_iterations)
             history.extend(offline_history[:-1])
-
 
             self.behavioral_policy.set_parameter(optimal_parameter)
             self.target_policy.set_parameter(optimal_parameter)
 
-            actual_iterations = len(offline_history) - 1
-            if self.adapt_batchsize and actual_iterations == 0:
+
+            if self.adapt_batchsize and offline_iterations == 0:
                 if N + self.batch_size_incr > self.max_batch_size:
                     if self.verbose:
                         print('ADAPTIVE BATCH SIZE - Reached maximum batch size')
@@ -155,25 +170,47 @@ class OnOffLearner:
                 dataset = np.concatenate((dataset,collect_episodes(self.mdp, self.behavioral_policy,
                                                    n_episodes=self.batch_size_incr)))
             else:
-                N = self.initial_batch_size
+
                 if self.verbose:
                     print(tabulate([('Epoch', i),
                                     ('InitialParameter', initial_parameter),
                                     ('FinalParameter', optimal_parameter),
-                                    ('OfflineIterations', len(offline_history) - 1),
+                                    ('OfflineIterations', offline_iterations),
                                     ('BatchSize', N),
                                     ('InitialStepSize', self.learning_rate)], tablefmt="rst"))
 
-                    i += 1
                     print("\nSTART EPOCH %s with new dataset of size %s" % \
                           (i, N))
 
-                dataset = collect_episodes(self.mdp, self.behavioral_policy, n_episodes=N)
+                if self.file_offline_epochs is not None:
+                    if i == 0:
+                        file_offline_epochs_writer.writerow(['Epoch,' + offline_learner.csv_header])
+                    for j in range(offline_iterations):
+                        file_offline_epochs_writer.writerow([i + 1] + offline_history[j])
 
-        if self.verbose: print('\nEND ONLINE/OFFLINE LEARNING')
+                if self.file_online_epochs is not None:
+                    if i == 0:
+                        file_online_epochs_writer.writerow(['Epoch,InitialParameter,FinalParameter,OfflineIterations,BatchSize,InitialStepSize'])
+                    file_online_epochs_writer.writerow([i, initial_parameter, optimal_parameter, offline_iterations, N, self.learning_rate])
+
+                N = self.initial_batch_size
+                dataset = collect_episodes(self.mdp, self.behavioral_policy, n_episodes=N)
+                i += 1
+
+        if self.file_online_epochs:
+            file_online_epochs_desc.close()
+
+        if self.file_offline_epochs:
+            file_offline_epochs_desc.close()
+
+        if self.verbose:
+            print('\nEND ONLINE/OFFLINE LEARNING')
 
 
         history.append(offline_history[-1])
         history_filter = np.cumsum(offline_history_lens)
+
+        #file_complete.close()
+        #file_online.close()
 
         return optimal_parameter, history, history_filter

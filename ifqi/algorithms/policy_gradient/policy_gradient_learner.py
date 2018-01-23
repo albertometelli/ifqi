@@ -43,7 +43,9 @@ class PolicyGradientLearner(object):
                  verbose=0,
                  state_index=0,
                  action_index=1,
-                 reward_index=2):
+                 reward_index=2,
+                 max_reward=1.,
+                 min_reward=0.):
 
         '''
         Constructor
@@ -106,6 +108,7 @@ class PolicyGradientLearner(object):
         self.hill_climb = hill_climb
         self.optimize_bound = optimize_bound
         self.search_step_size = search_step_size
+        self.max_reward, self.min_reward = max_reward, min_reward
 
         if importance_weighting_method is not None and behavioral_policy is None:
             raise ValueError('If you want to use importance weighting you must \
@@ -186,7 +189,9 @@ class PolicyGradientLearner(object):
                                                         self.verbose == 2,
                                                         self.state_index,
                                                         self.action_index,
-                                                        self.reward_index)
+                                                        self.reward_index,
+                                                        self.max_reward,
+                                                        self.min_reward)
         elif estimator == 'gpomdp':
             self.estimator = GPOMDPGradientEstimator(self.trajectory_generator,
                                                     self.behavioral_policy,
@@ -202,7 +207,9 @@ class PolicyGradientLearner(object):
                                                      self.verbose == 2,
                                                      self.state_index,
                                                      self.action_index,
-                                                     self.reward_index)
+                                                     self.reward_index,
+                                                     self.max_reward,
+                                                     self.min_reward)
         else:
             raise ValueError('Gradient estimator not found.')
 
@@ -215,7 +222,9 @@ class PolicyGradientLearner(object):
         else:
             raise ValueError('Gradient updater not found.')
 
-    def optimize(self, initial_parameter, return_history=False):
+
+
+    def optimize(self, initial_parameter, return_history=0):
         '''
         This method performs the optimization of the parameters of the target_policy
 
@@ -223,6 +232,11 @@ class PolicyGradientLearner(object):
         param return_history: whether to return a list of tripels (parameter,
                               average return, gradient) for each iteration
         '''
+
+        if return_history > 0:
+            self.csv_header = 'Iteration,AvgReturnNormalized,AvgReturn,AvgDiscountedReturn,Penalization,M_2,M_inf,BoundValue,GradientNorm,StepSize,Horizon'
+            if return_history == 2:
+                self.csv_header += 'Parameter,Gradient'
 
         ite = 0
         theta = np.copy(initial_parameter)
@@ -237,19 +251,37 @@ class PolicyGradientLearner(object):
             print('Bound: %s' % self.bound.__class__)
             print('Trajectory generator: %s' % self.trajectory_generator.__class__)
 
-        gradient, avg_return, penalization, H_star, stepwise_avg_return = self.estimator.estimate(baseline_type=self.baseline_type)
+        gradient, avg_return_norm, penalization, H_star, stepwise_avg_return, avg_return, avg_discounted_return = self.estimator.estimate(baseline_type=self.baseline_type)
         old_stepwise_avg_return = stepwise_avg_return
         gradient_norm = la.norm(gradient)
-        initial_bound_value = avg_return + penalization
+        initial_bound_value = avg_return_norm + penalization
 
-        history = [[np.copy(theta), avg_return, gradient, penalization, H_star]]
+        if return_history > 0:
+            self.csv_header = 'Iteration,AvgReturnNormalized,AvgReturn,AvgDiscountedReturn,Penalization,M_2,M_inf,BoundValue,GradientNorm,StepSize,Horizon'
+            elem = [ite + 1,
+                    avg_return_norm,
+                    avg_return,
+                    avg_discounted_return,
+                    penalization,
+                    self.bound.M_2 if hasattr(self.bound, 'M_2') else '---',
+                    self.bound.M_inf if hasattr(self.bound, 'M_inf') else '---',
+                    initial_bound_value,
+                    gradient_norm,
+                    self.gradient_updater.learning_rate,
+                    self.bound.H_star]
+            if return_history == 2:
+                self.csv_header += 'Parameter,Gradient'
+                elem = elem + [np.copy(theta), np.copy(gradient)]
+            history = [elem]
 
         if self.verbose >= 1:
             print(tabulate([('Iteration', ite),
+                            ('AvgReturnNormalized', avg_return_norm),
                             ('AvgReturn', avg_return),
+                            ('AvgDiscountedReturn', avg_discounted_return),
                             ('Penalization', penalization),
                             ('M_2', self.bound.M_2 if hasattr(self.bound, 'M_2') else '---'),
-                            ('M_inf', self.bound.M_2 if hasattr(self.bound, 'M_inf') else '---'),
+                            ('M_inf', self.bound.M_inf if hasattr(self.bound, 'M_inf') else '---'),
                             ('InitialBoundValue', initial_bound_value),
                             ('BoundValue', initial_bound_value),
                             ('GradientNorm', gradient_norm),
@@ -257,7 +289,6 @@ class PolicyGradientLearner(object):
                             ('Horizon', self.bound.H_star),
                             ('Parameter', theta),
                             ('Gradient', gradient)]))
-
 
         while ite < self.max_iter_opt and gradient_norm > self.tol_opt:
 
@@ -269,23 +300,39 @@ class PolicyGradientLearner(object):
 
             old_stepwise_avg_return = stepwise_avg_return
             old_gradient = gradient
-            old_avg_return = avg_return
+            old_avg_return_norm = avg_return_norm
             old_penalization = penalization
             old_H_star = H_star
 
-            gradient, avg_return, penalization, H_star, stepwise_avg_return = self.estimator.estimate(baseline_type=self.baseline_type)
+            gradient, avg_return_norm, penalization, H_star, stepwise_avg_return, avg_return, avg_discounted_return = self.estimator.estimate(baseline_type=self.baseline_type)
             gradient_norm = la.norm(gradient)
-            bound_value = avg_return + penalization
+            bound_value = avg_return_norm + penalization
 
             ite += 1
-            history.append([np.copy(theta), avg_return, gradient, penalization, H_star])
+            if return_history > 0:
+                elem = [ite + 1,
+                        avg_return_norm,
+                        avg_return,
+                        avg_discounted_return,
+                        penalization,
+                        self.bound.M_2 if hasattr(self.bound, 'M_2') else '---',
+                        self.bound.M_inf if hasattr(self.bound, 'M_inf') else '---',
+                        initial_bound_value,
+                        gradient_norm,
+                        self.gradient_updater.learning_rate,
+                        self.bound.H_star]
+                if return_history == 2:
+                    elem = elem + [np.copy(theta), np.copy(gradient)]
+                history.append(elem)
 
             if self.verbose >= 1:
                 print(tabulate([('Iteration', ite),
-                                ('AvgDiscountedReturn', avg_return),
+                                ('AvgReturnNormalized', avg_return_norm),
+                                ('AvgReturn', avg_return),
+                                ('AvgDiscountedReturn', avg_discounted_return),
                                 ('Penalization', penalization),
                                 ('M_2', self.bound.M_2 if hasattr(self.bound, 'M_2') else '---'),
-                                ('M_inf', self.bound.M_2 if hasattr(self.bound, 'M_inf') else '---'),
+                                ('M_inf', self.bound.M_inf if hasattr(self.bound, 'M_inf') else '---'),
                                 ('InitialBoundValue', initial_bound_value),
                                 ('BoundValue', bound_value),
                                 ('GradientNorm', gradient_norm),
@@ -316,7 +363,7 @@ class PolicyGradientLearner(object):
                             self.target_policy.set_parameter(theta)
                             self.estimator.set_target_policy(self.target_policy)
                             self.gradient_updater.set_parameter(theta)
-                            avg_return, gradient, penalization, H_star = old_avg_return, old_gradient, old_penalization, old_H_star
+                            avg_return_norm, gradient, penalization, H_star = old_avg_return_norm, old_gradient, old_penalization, old_H_star
                             stepwise_avg_return = old_stepwise_avg_return
                             gradient_norm = la.norm(gradient)
                             ite -= 1
@@ -335,7 +382,6 @@ class PolicyGradientLearner(object):
                     break
 
         return theta, history
-
 
     def compute_new_horizon(self, initial_bound_value, stepwise_avg_return):
         if self.bound is None or isinstance(self.bound, DummyBound):
@@ -374,7 +420,9 @@ class GradientEstimator(object):
                  verbose=True,
                  state_index=0,
                  action_index=1,
-                 reward_index=2):
+                 reward_index=2,
+                 max_reward=1.,
+                 min_reward=0.):
         '''
         Constructor
 
@@ -410,6 +458,7 @@ class GradientEstimator(object):
         self.bound = bound
         self.select_initial_point = select_initial_point
         self.optimize_bound = optimize_bound
+        self.max_reward, self.min_reward = max_reward, min_reward
 
     def set_target_policy(self, target_policy):
         self.target_policy = target_policy
@@ -436,7 +485,10 @@ class GradientEstimator(object):
         traj_log_gradients = np.zeros((self.max_iter, int(self.horizon), self.dim))
 
         #vector of the importance weights
-        ws = np.zeros((self.max_iter, int(self.horizon)))
+        ws = np.ones((self.max_iter, int(self.horizon)))
+
+        avg_return = 0.
+        avg_discounted_return = 0.
 
         #vectors of the lenghts of trajectories
         horizons = []
@@ -481,8 +533,17 @@ class GradientEstimator(object):
             ws[ite, :traj_horizon] = w
 
             # Compute the trajectory return
-            traj_return = self.gamma ** k * traj[:, self.reward_index] * self.gamma ** np.arange(traj_horizon)
-            traj_returns[ite, :traj_horizon] = traj_return
+            rewards = np.zeros(self.horizon)
+            rewards[:traj_horizon] = traj[:, self.reward_index]
+
+            avg_return += np.sum(ws[ite] * rewards)
+            avg_discounted_return += np.sum(ws[ite] * self.gamma ** k * rewards * self.gamma ** np.arange(self.horizon))
+
+            # Normalize the reward
+            rewards_norm = (rewards - self.min_reward) / (self.max_reward - self.min_reward)
+
+            traj_return = self.gamma ** k * rewards_norm * self.gamma ** np.arange(self.horizon)
+            traj_returns[ite, :] = traj_return
 
             # Compute the trajectory log policy gradient
             traj_log_gradient = self.compute_gradient_log_policy_sum(traj)
@@ -503,7 +564,11 @@ class GradientEstimator(object):
 
 
         assert(traj_returns.shape == ws.shape)
-        return gradient_estimate, np.mean(np.sum(traj_returns * ws, axis=1)), penalization, H_star, np.mean(np.cumsum(traj_returns * ws, axis=1), axis=0)
+
+        avg_return /= self.max_iter
+        avg_discounted_return /= self.max_iter
+
+        return gradient_estimate, np.mean(np.sum(traj_returns * ws, axis=1)), penalization, H_star, np.mean(np.cumsum(traj_returns * ws, axis=1), axis=0), avg_return, avg_discounted_return
 
 
 class ReinforceGradientEstimator(GradientEstimator):

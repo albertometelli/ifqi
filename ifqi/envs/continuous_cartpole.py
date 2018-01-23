@@ -47,6 +47,9 @@ class CartPoleEnv(gym.Env):
         self.action_space = spaces.Box(-max_action, max_action)
         self.observation_space = spaces.Box(-high, high)
 
+        self.max_reward = 10.
+        self.min_reward = -1 - 1e-5
+
         self._seed()
         self.viewer = None
         self.state = None
@@ -95,9 +98,10 @@ class CartPoleEnv(gym.Env):
 
         ucost = 1e-5* action**2
         xcost = 1 - np.cos(theta)
-        reward = (reward - ucost - xcost + 1e-5 + 1) / (10 + 1 + 1e-5) *2 - 1
+        reward = reward - ucost - xcost
 
-        assert(reward >= -1 and reward <=1)
+        #reward = (reward - ucost - xcost + 1e-5 + 1) / (10 + 1 + 1e-5) *2 - 1
+        #assert(reward >= -1 and reward <=1)
 
         return np.array(self.state).ravel(), reward, done, {}
 
