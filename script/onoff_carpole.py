@@ -41,7 +41,7 @@ learner = OnOffLearner(mdp,
                        gradient_updater='vanilla',
                        gradient_updater_outer='vanilla',
                        max_offline_iterations=50,
-                       online_iterations=3,
+                       online_iterations=500,
                        state_index=range(0,4),
                        action_index=4,
                        reward_index=5,
@@ -78,6 +78,8 @@ online_reinforce_cheb = PolicyGradientLearner(online_trajectory_generator,
 initial_parameter = target_policy.get_parameter()
 optimal_parameter, history_online_reinforce = online_reinforce_cheb.optimize(
         initial_parameter, return_history=2)
+
+np.save('gpomdp_cartpole', history_online_reinforce)
 
 plt.plot(np.array(history_online_reinforce)[:,1])
 plt.plot(np.array(history)[history_filter, 1])
