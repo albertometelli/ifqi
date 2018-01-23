@@ -7,6 +7,7 @@ from ifqi.algorithms.policy_gradient.policy_gradient_learner import \
     PolicyGradientLearner
 import numpy as np
 from ifqi.algorithms.policy_gradient.gradient_descent import *
+from tabulate import tabulate
 
 
 class OnOffLearner:
@@ -25,6 +26,7 @@ class OnOffLearner:
                 search_horizon=False,
                 adapt_batchsize=False,
                 optimize_bound=False,
+                 search_step_size=False,
                 bound='chebyshev',
                 delta=0.2,
                 importance_weighting_method='is',
@@ -64,6 +66,7 @@ class OnOffLearner:
         self.reward_index = reward_index
         self.action_index = action_index
         self.select_optimal_horizon = select_optimal_horizon
+        self.search_step_size = search_step_size
 
         if gradient_updater_outer == 'vanilla':
             self.gradient_updater_outer = VanillaGradient(self.learning_rate, ascent=True)
@@ -106,6 +109,7 @@ class OnOffLearner:
                                            hill_climb = self.search_horizon,
                                            bound=self.bound,
                                            optimize_bound=self.optimize_bound,
+                                           search_step_size=self.search_step_size,
                                            delta=self.delta,
                                            behavioral_policy=self.behavioral_policy,
                                            importance_weighting_method=self.importance_weighting_method,
@@ -119,11 +123,11 @@ class OnOffLearner:
                                                     action_index=self.action_index,
                                                     reward_index=self.reward_index)
 
-            #TODO fix this
+
+
             gradient, _, _, _, _ = offline_learner.estimator.estimate()
             self.learning_rate = self.gradient_updater_outer.get_learning_rate(gradient)
             offline_learner.gradient_updater.learning_rate = self.learning_rate
-            print('LR %s' % self.learning_rate)
 
             initial_parameter = self.behavioral_policy.get_parameter()
 
@@ -131,34 +135,36 @@ class OnOffLearner:
                                                                           return_history=True)
 
 
-            print(self.learning_rate)
-
             offline_history_lens.append(len(offline_history)-1)
             history.extend(offline_history[:-1])
+
+
             self.behavioral_policy.set_parameter(optimal_parameter)
             self.target_policy.set_parameter(optimal_parameter)
 
             actual_iterations = len(offline_history) - 1
             if self.adapt_batchsize and actual_iterations == 0:
-                if N+self.batch_size_incr>self.max_batch_size:
-                    if self.verbose: print('Cannot learn further with the available data!')
+                if N + self.batch_size_incr > self.max_batch_size:
+                    if self.verbose:
+                        print('ADAPTIVE BATCH SIZE - Reached maximum batch size')
                     break
 
-                N+=self.batch_size_incr
-                print('Collecting %s more trajectories (total: %s)' % \
+                N += self.batch_size_incr
+                print('ADAPTIVE BATCH SIZE - Collecting %s more trajectories (total: %s)' % \
                       (self.batch_size_incr, N))
                 dataset = np.concatenate((dataset,collect_episodes(self.mdp, self.behavioral_policy,
                                                    n_episodes=self.batch_size_incr)))
             else:
                 N = self.initial_batch_size
                 if self.verbose:
-                    print('******** RECAP OF EPOCH %s: ********' % (i))
-                    print('Initial parameter: %s' % initial_parameter)
-                    print('Optimal parameter: %s' % optimal_parameter)
-                    print('Iterations: %s' % (len(offline_history) - 1))
-                    print('************************************')
+                    print(tabulate([('Epoch', i),
+                                    ('InitialParameter', initial_parameter),
+                                    ('FinalParameter', optimal_parameter),
+                                    ('OfflineIterations', len(offline_history) - 1),
+                                    ('BatchSize', N),
+                                    ('InitialStepSize', self.learning_rate)], tablefmt="rst"))
 
-                    i+=1
+                    i += 1
                     print("\nSTART EPOCH %s with new dataset of size %s" % \
                           (i, N))
 

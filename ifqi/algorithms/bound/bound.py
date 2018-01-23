@@ -40,8 +40,14 @@ class Bound(object):
     def get_optimal_horizon(self):
         pass
 
-    def get_optimal_batchsize(self,J_hat):
+    def get_optimal_batchsize(self, J_hat):
         raise NotImplementedError
+
+    def set_horizon(self, horizon):
+        if self.select_optimal_horizon:
+            self.H_star = self.get_optimal_horizon()
+        else:
+            self.H_star = horizon
 
 
 class DummyBound(Bound):
@@ -65,10 +71,7 @@ class HoeffdingBound(Bound):
         super(HoeffdingBound, self).set_policies(behavioral_policy, target_policy)
         self.M_inf = self.target_policy.M_inf(self.behavioral_policy)
         self.M_inf_gradient = self.target_policy.gradient_M_inf(self.behavioral_policy)
-        if self.select_optimal_horizon:
-            self.H_star = self.get_optimal_horizon()
-        else:
-            self.H_star = self.horizon
+        self.set_horizon(self.horizon)
 
 class HoeffdingBoundRatioImportanceWeighting(HoeffdingBound):
 
@@ -126,10 +129,7 @@ class ChebyshevBound(Bound):
         super(ChebyshevBound, self).set_policies(behavioral_policy, target_policy)
         self.M_2 = self.target_policy.M_2(self.behavioral_policy)
         self.M_2_gradient = self.target_policy.gradient_M_2(self.behavioral_policy)
-        if self.select_optimal_horizon:
-            self.H_star = self.get_optimal_horizon()
-        else:
-            self.H_star = self.horizon
+        self.set_horizon(self.horizon)
 
 class ChebyshevBoundRatioImportanceWeighting(ChebyshevBound):
 
@@ -216,10 +216,7 @@ class BernsteinBound(Bound):
         self.M_2_gradient = self.target_policy.gradient_M_2(self.behavioral_policy)
         self.M_inf = self.target_policy.M_inf(self.behavioral_policy)
         self.M_inf_gradient = self.target_policy.gradient_M_inf(self.behavioral_policy)
-        if self.select_optimal_horizon:
-            self.H_star = self.get_optimal_horizon()
-        else:
-            self.H_star = self.horizon
+        self.set_horizon(self.horizon)
 
 class BernsteinBoundRatioImportanceWeighting(BernsteinBound):
 
@@ -269,11 +266,7 @@ class NormalBound(Bound):
         self.M_2 = self.target_policy.M_2(self.behavioral_policy)
         self.M_2_gradient = self.target_policy.gradient_M_2(self.behavioral_policy)
         self.z = sts.norm.ppf(1. - self.delta)
-
-        if self.select_optimal_horizon:
-            self.H_star = self.get_optimal_horizon()
-        else:
-            self.H_star = self.horizon
+        self.set_horizon(self.horizon)
 
 class NormalBoundRatioImportanceWeighting(NormalBound):
 

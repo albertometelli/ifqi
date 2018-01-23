@@ -7,6 +7,8 @@ from ifqi.algorithms.policy_gradient.gradient_descent import *
 from ifqi.algorithms.importance_weighting.importance_weighting import *
 from ifqi.algorithms.bound.bound import *
 import ifqi.algorithms.bound.bound_factory as bound_factory
+from tabulate import tabulate
+from ifqi.utils.tictoc import *
 
 class PolicyGradientLearner(object):
 
@@ -33,6 +35,7 @@ class PolicyGradientLearner(object):
                  safe_stopping=False,
                  hill_climb = False,
                  optimize_bound = False,
+                 search_step_size=False,
                  max_iter_eval=100,
                  tol_eval=-1.,
                  max_iter_opt=100,
@@ -102,6 +105,7 @@ class PolicyGradientLearner(object):
         self.safe_stopping = safe_stopping
         self.hill_climb = hill_climb
         self.optimize_bound = optimize_bound
+        self.search_step_size = search_step_size
 
         if importance_weighting_method is not None and behavioral_policy is None:
             raise ValueError('If you want to use importance weighting you must \
@@ -233,205 +237,120 @@ class PolicyGradientLearner(object):
             print('Bound: %s' % self.bound.__class__)
             print('Trajectory generator: %s' % self.trajectory_generator.__class__)
 
-        gradient, avg_return, penalization, H_star, terminate = self.estimator.estimate(baseline_type=self.baseline_type)
+        gradient, avg_return, penalization, H_star, stepwise_avg_return = self.estimator.estimate(baseline_type=self.baseline_type)
+        old_stepwise_avg_return = stepwise_avg_return
+        gradient_norm = la.norm(gradient)
         initial_bound_value = avg_return + penalization
 
-        if return_history:
-            history = [[np.copy(theta), avg_return, gradient, penalization, H_star]]
-
-        gradient_norm = la.norm(gradient)
+        history = [[np.copy(theta), avg_return, gradient, penalization, H_star]]
 
         if self.verbose >= 1:
-            print('Ite %s: return %s - gradient norm %s' % (ite, avg_return, gradient_norm))
+            print(tabulate([('Iteration', ite),
+                            ('AvgReturn', avg_return),
+                            ('Penalization', penalization),
+                            ('M_2', self.bound.M_2 if hasattr(self.bound, 'M_2') else '---'),
+                            ('M_inf', self.bound.M_2 if hasattr(self.bound, 'M_inf') else '---'),
+                            ('InitialBoundValue', initial_bound_value),
+                            ('BoundValue', initial_bound_value),
+                            ('GradientNorm', gradient_norm),
+                            ('StepSize', self.gradient_updater.learning_rate),
+                            ('Horizon', self.bound.H_star),
+                            ('Parameter', theta),
+                            ('Gradient', gradient)]))
 
-        bound_value = initial_bound_value
-        print('Initial Bound %s \t J %s \t penaliz %s \t param %s' % (bound_value, avg_return, penalization, theta))
-        while ite < self.max_iter_opt and gradient_norm > self.tol_opt: # and not (terminate and self.adaptive_stop):
+
+        while ite < self.max_iter_opt and gradient_norm > self.tol_opt:
+
             theta_old = np.copy(theta) #Backup for safe stopping
             theta = self.gradient_updater.update(gradient) #Gradient ascent update
-            if self.verbose >= 1:
-                print(theta)
 
             self.target_policy.set_parameter(theta)
             self.estimator.set_target_policy(self.target_policy)
+
+            old_stepwise_avg_return = stepwise_avg_return
             old_gradient = gradient
-            gradient, avg_return, penalization, H_star, terminate  = self.estimator.estimate(baseline_type=self.baseline_type)
-            old_bound_value = bound_value
-            bound_value = avg_return + penalization
-            print('Bound %s \t J %s \t penaliz %s \t param %s' % (bound_value, avg_return, penalization, theta))
+            old_avg_return = avg_return
+            old_penalization = penalization
+            old_H_star = H_star
 
-            if return_history:
-                history.append([np.copy(theta), avg_return, gradient, penalization, H_star])
-
+            gradient, avg_return, penalization, H_star, stepwise_avg_return = self.estimator.estimate(baseline_type=self.baseline_type)
             gradient_norm = la.norm(gradient)
+            bound_value = avg_return + penalization
 
-            if self.adaptive_stop and  bound_value < initial_bound_value: #np.dot(old_gradient, gradient) <= 0:
+            ite += 1
+            history.append([np.copy(theta), avg_return, gradient, penalization, H_star])
 
-               #Stopping
-                if self.safe_stopping:
-                    theta = np.copy(theta_old)
-                    bound_value = old_bound_value
-                    ite-=1
-                    if return_history:
-                        history = history[:-1]
-                    #TODO: implement step size search
+            if self.verbose >= 1:
+                print(tabulate([('Iteration', ite),
+                                ('AvgDiscountedReturn', avg_return),
+                                ('Penalization', penalization),
+                                ('M_2', self.bound.M_2 if hasattr(self.bound, 'M_2') else '---'),
+                                ('M_inf', self.bound.M_2 if hasattr(self.bound, 'M_inf') else '---'),
+                                ('InitialBoundValue', initial_bound_value),
+                                ('BoundValue', bound_value),
+                                ('GradientNorm', gradient_norm),
+                                ('StepSize', self.gradient_updater.learning_rate),
+                                ('Horizon', self.bound.H_star),
+                                ('Parameter', theta),
+                                ('Gradient', gradient)]))
 
-                if self.hill_climb and self.horizon>1:
-                    #Search better horizon (only down for now)
-                    new_bound_value = -np.inf
-                    while(new_bound_value<bound_value) and self.horizon>1:
-                        self.horizon-=1
-                        self.bound.horizon = self.horizon
-                        self.estimator.horizon = self.horizon
-                        new_avg_return, new_penalization = self.estimator.evaluate()
-                        new_bound_value = new_avg_return + new_penalization
+            if self.adaptive_stop and bound_value < initial_bound_value:
 
-                    if new_bound_value<bound_value:
-                        print('STOPPING')
-                        break
+                print('ADAPTIVE STOP - bound_value < initial_bound_value')
 
-                    print('%s >= %s' % (new_bound_value,bound_value))
-                    print('CONTINUING parameter exploration with new horizon %s' % (self.horizon))
+                if self.hill_climb:
 
+                    new_horizon = self.compute_new_horizon(initial_bound_value, stepwise_avg_return)
+                    if new_horizon != -1:
+                        print('ADAPTIVE HORIZON - new horizon %s' % new_horizon)
+                        self.bound.set_horizon(new_horizon)
+                        assert(self.bound.H_star == new_horizon)
+                    else:
+                        print('ADAPTIVE HORIZON - no horizon found!')
+
+                        # Stopping
+                        if self.safe_stopping:
+
+                            print('SAFE STOPPING')
+                            theta = np.copy(theta_old)
+                            self.target_policy.set_parameter(theta)
+                            self.estimator.set_target_policy(self.target_policy)
+                            self.gradient_updater.set_parameter(theta)
+                            avg_return, gradient, penalization, H_star = old_avg_return, old_gradient, old_penalization, old_H_star
+                            stepwise_avg_return = old_stepwise_avg_return
+                            gradient_norm = la.norm(gradient)
+                            ite -= 1
+
+                            if return_history:
+                                history = history[:-1]
+
+                        if self.search_step_size and self.gradient_updater.learning_rate > 1e-6:
+                            self.gradient_updater.reduce_learning_rate()
+                            print('ADAPTIVE STEP SIZE - reducing to %s' % self.gradient_updater.learning_rate)
+                        else:
+                            print('Terminating OFFLINE update.')
+                            break
                 else:
+                    print('Terminating OFFLINE update.')
                     break
 
-            ite += 1
- 
-            if self.verbose >= 1:
-                print('Ite %s: return %s - gradient norm %s - penalization %s' % (
-                ite, avg_return, gradient_norm, penalization))
-                print(terminate)
-
-        if return_history:
-            return theta, history
-        else:
-            return theta
-
-class OldGradientEstimator(object):
-    '''
-    Abstract class for gradient estimators
-    '''
-
-    eps = 1e-24  # Tolerance used to avoid divisions by zero
-
-    def __init__(self,
-                 trajectory_generator,
-                 behavioral_policy,
-                 target_policy,
-                 is_estimator,
-                 gamma,
-                 horizon,
-                 tol=1e-5,
-                 max_iter=100,
-                 verbose=True,
-                 state_index=0,
-                 action_index=1,
-                 reward_index=2):
-        '''
-        Constructor
-
-        :param trajectory_generator: an iterable class that provides the trajectories
-        :param behavioral_policy: the policy used to collect data (only offline)
-        :param target_policy: the policy to be optimized
-        :param is_estimator: the importance weighing estimator
-        :param gamma: the discount factor
-        :param horizon: the maximum lenght of a trajectory
-        :param tol: the estimation stops when norm-2 of the gradient increment is
-                    below tol
-        :param max_iter: he maximum number of iterations for the algorithm
-        :param verbose: whether to display progressing messages
-        :param state_index: see PolicyGradientLearner
-        :param action_index: see PolicyGradientLearner
-        :param reward_index: see PolicyGradientLearner
-        '''
+        return theta, history
 
 
-        self.trajectory_generator = trajectory_generator
-        self.behavioral_policy = behavioral_policy
-        self.target_policy = target_policy
-        self.tol = tol
-        self.max_iter = max_iter
-        self.verbose = verbose
-        self.state_index= state_index
-        self.action_index = action_index
-        self.reward_index = reward_index
-        self.gamma = gamma
-        self.horizon = horizon
-        self.is_estimator = is_estimator
-        self.dim = target_policy.get_n_parameters()
+    def compute_new_horizon(self, initial_bound_value, stepwise_avg_return):
+        if self.bound is None or isinstance(self.bound, DummyBound):
+            return self.horizon
 
-    def set_target_policy(self, target_policy):
-        self.target_policy = target_policy
-        self.is_estimator.set_target_policy(self.target_policy)
+        for h in range(self.horizon):
+            self.bound.set_horizon(h + 1)
+            penalization = self.bound.penalization()
+            if stepwise_avg_return[h] + penalization > initial_bound_value:
+                self.bound.set_horizon(self.horizon)
+                return h + 1
 
-    def compute_gradient_log_policy_sum(self, traj):
-        pass
+        self.bound.set_horizon(self.horizon)
+        return -1
 
-    def compute_baseline(self, baseline_type, traj_log_gradients, ws, traj_returns):
-        pass
-
-    def estimate(self, baseline_type='vectorial'):
-
-        if self.verbose:
-            print('\tReinforce: starting estimation...')
-
-        ite = 0
-        gradient_increment = np.inf
-        gradient_estimate = np.inf
-
-        #vector of the trajectory returns
-        traj_returns = np.ndarray((0, int(self.horizon)))
-
-        # matrix of the tragectory log policy gradient
-        traj_log_gradients = np.ndarray((0, int(self.horizon), self.dim))
-
-        #vector of the importance weights
-        ws =  np.ndarray((0, int(self.horizon)))
-
-        #vectors of the lenghts of trajectories
-        horizons = []
-
-        while ite < self.max_iter and gradient_increment > self.tol:
-            ite += 1
-
-            # Collect a trajectory
-            self.trajectory_generator.set_policy(self.target_policy)
-            traj = self.trajectory_generator.next()[:int(self.horizon)]
-
-            #Compute lenght
-            horizons.append(traj.shape[0])
-
-            #Compute the is weights
-            w = self.is_estimator.weight(traj)
-            w = np.concatenate([w, np.zeros(int(self.horizon) - horizons[-1])])
-            ws = np.vstack([ws, [w]])
-
-            # Compute the trajectory return
-            traj_return = np.zeros(int(self.horizon))
-            traj_return[:horizons[-1]] = traj[:, self.reward_index] * self.gamma ** np.arange(horizons[-1])
-            traj_returns = np.vstack([traj_returns, [traj_return]])
-
-            # Compute the trajectory log policy gradient
-            traj_log_gradient = self.compute_gradient_log_policy_sum(traj)
-            traj_log_gradients = np.vstack([traj_log_gradients, [traj_log_gradient]])
-
-
-            # Compute the optimal baseline
-            baseline = self.compute_baseline(baseline_type, traj_log_gradients, ws,traj_returns)
-
-            # Compute the gradient estimate
-            old_gradient_estimate = gradient_estimate
-            gradient_estimate = np.mean(np.sum(traj_log_gradients *  ws[:, :, np.newaxis] * (traj_returns[:, :, np.newaxis] - baseline), axis=1), axis=0)
-
-            # Compute the gradient increment
-            gradient_increment = la.norm(
-                gradient_estimate - old_gradient_estimate)
-
-            if self.verbose:
-                print('\tIteration %s return %s gradient_norm %s gradient_increment %s' % (ite, traj_return, la.norm(gradient_estimate), gradient_increment))
-
-        return gradient_estimate, np.mean(np.sum(traj_returns, axis=1))
 
 class GradientEstimator(object):
     '''
@@ -511,13 +430,13 @@ class GradientEstimator(object):
         gradient_estimate = np.inf
 
         #vector of the trajectory returns
-        traj_returns = np.ndarray((0, int(self.horizon)))
+        traj_returns = np.zeros((self.max_iter, int(self.horizon)))
 
         # matrix of the tragectory log policy gradient
-        traj_log_gradients = np.ndarray((0, int(self.horizon), self.dim))
+        traj_log_gradients = np.zeros((self.max_iter, int(self.horizon), self.dim))
 
         #vector of the importance weights
-        ws =  np.ndarray((0, int(self.horizon)))
+        ws = np.zeros((self.max_iter, int(self.horizon)))
 
         #vectors of the lenghts of trajectories
         horizons = []
@@ -536,23 +455,16 @@ class GradientEstimator(object):
         if self.verbose:
             print("Hstar %s" % H_star)
 
-        print('Hstar %s' % H_star)
-        print('M2 %s '% self.bound.M_2)
-
-
         if self.bound is not None:
             penalization_gradient = self.bound.gradient_penalization()
             penalization = self.bound.penalization()
         else:
             penalization_gradient = penalization = 0.
 
+        self.trajectory_generator.set_policy(self.target_policy)
 
         while ite < self.max_iter:
-            ite += 1
-
             # Collect a trajectory
-            self.trajectory_generator.set_policy(self.target_policy)
-
             traj = self.trajectory_generator.next()
             if not self.select_initial_point or len(traj) <= H_star:
                 k = 0
@@ -561,25 +473,22 @@ class GradientEstimator(object):
             traj = traj[k:k + H_star]
 
             #Compute lenght
-            horizons.append(traj.shape[0])
+            traj_horizon = traj.shape[0]
+            horizons.append(traj_horizon)
 
             #Compute the is weights
             w = self.is_estimator.weight(traj)
-            w = np.concatenate([w, np.zeros(int(self.horizon) - horizons[-1])])
-            ws = np.vstack([ws, [w]])
+            ws[ite, :traj_horizon] = w
 
             # Compute the trajectory return
-            traj_return = np.zeros(int(self.horizon))
-            traj_return[:horizons[-1]] = traj[:, self.reward_index] * self.gamma ** np.arange(horizons[-1])
-
-            traj_return *= self.gamma ** k
-
-            traj_returns = np.vstack([traj_returns, [traj_return]])
+            traj_return = self.gamma ** k * traj[:, self.reward_index] * self.gamma ** np.arange(traj_horizon)
+            traj_returns[ite, :traj_horizon] = traj_return
 
             # Compute the trajectory log policy gradient
             traj_log_gradient = self.compute_gradient_log_policy_sum(traj)
-            traj_log_gradients = np.vstack([traj_log_gradients, [traj_log_gradient]])
+            traj_log_gradients[ite, :traj_horizon] = traj_log_gradient
 
+            ite += 1
 
         # Compute the optimal baseline
         baseline = self.compute_baseline(baseline_type, traj_log_gradients, ws, traj_returns)
@@ -588,82 +497,13 @@ class GradientEstimator(object):
         gradient_estimate = np.mean(np.sum(traj_log_gradients * \
                                 ws[:, :, np.newaxis] * \
                                 (traj_returns[:, :, np.newaxis] - baseline), axis=1), axis=0)
-        #print("gradient estimate %s" % gradient_estimate)
-
-        #if la.norm(self.gamma ** k * penalization_gradient) >= la.norm(gradient_estimate):
-        #    terminate = True
-        #else:
-        #    terminate = False
-        terminate = False
 
         if self.optimize_bound:
             gradient_estimate = gradient_estimate + self.gamma ** k * penalization_gradient
 
-        if self.verbose:
-            print("penalization gradient %s" % penalization_gradient)
 
-        return gradient_estimate, np.mean(np.sum(traj_returns * w, axis=1)), penalization, H_star, terminate
-
-    def evaluate(self):
-        ite = 0
-
-        #vector of the trajectory returns
-        traj_returns = np.ndarray((0, int(self.horizon)))
-
-        #vector of the importance weights
-        ws =  np.ndarray((0, int(self.horizon)))
-
-        #vectors of the lenghts of trajectories
-        horizons = []
-
-        if self.bound is not None:
-            self.bound.set_policies(self.behavioral_policy, self.target_policy)
-            H_star = self.bound.H_star
-            if self.verbose:
-                if isinstance(self.bound, ChebyshevBound):
-                    print("M 2 %s" % self.bound.M_2)
-                elif isinstance(self.bound, HoeffdingBound):
-                    print("M inf %s" % self.bound.M_inf)
-        else:
-            H_star = self.horizon
-        H_star = int(min(self.horizon, H_star))
-        if self.verbose:
-            print("Hstar %s" % H_star)
-
-        if self.bound is not None:
-            penalization = self.bound.penalization()
- 
-        while ite < self.max_iter:
-            ite += 1
-
-            # Collect a trajectory
-            self.trajectory_generator.set_policy(self.target_policy)
-
-            traj = self.trajectory_generator.next()
-            if not self.select_initial_point or len(traj) <= H_star:
-                k = 0
-            else:
-                k = np.random.randint(0, len(traj) - H_star)
-            traj = traj[k:k + H_star]
-
-            #Compute lenght
-            horizons.append(traj.shape[0])
-
-            #Compute the is weights
-            w = self.is_estimator.weight(traj)
-            w = np.concatenate([w, np.zeros(int(self.horizon) - horizons[-1])])
-            ws = np.vstack([ws, [w]])
-
-            # Compute the trajectory return
-            traj_return = np.zeros(int(self.horizon))
-            traj_return[:horizons[-1]] = traj[:, self.reward_index] * self.gamma ** np.arange(horizons[-1])
-
-            traj_return *= self.gamma ** k
-
-            traj_returns = np.vstack([traj_returns, [traj_return]])
-
-        return np.mean(np.sum(traj_returns * w, axis=1)), penalization
-
+        assert(traj_returns.shape == ws.shape)
+        return gradient_estimate, np.mean(np.sum(traj_returns * ws, axis=1)), penalization, H_star, np.mean(np.cumsum(traj_returns * ws, axis=1), axis=0)
 
 
 class ReinforceGradientEstimator(GradientEstimator):
@@ -683,7 +523,7 @@ class ReinforceGradientEstimator(GradientEstimator):
             traj_log_gradient += self.target_policy.gradient_log(
                 traj[i, self.state_index], traj[i, self.action_index])
 
-        return np.repeat([traj_log_gradient], self.horizon, axis=0)
+        return np.repeat([traj_log_gradient], horizon, axis=0)
 
     def compute_baseline(self, baseline_type, traj_log_gradients, ws, traj_returns):
         if baseline_type == 'vectorial':
@@ -711,7 +551,7 @@ class GPOMDPGradientEstimator(GradientEstimator):
 
     def compute_gradient_log_policy_sum(self, traj):
         horizon = len(traj)
-        traj_log_gradient = np.zeros((self.horizon, self.dim))
+        traj_log_gradient = np.zeros((horizon, self.dim))
         traj_log_gradient[0] = self.target_policy.gradient_log(
             traj[0, self.state_index], traj[0, self.action_index])
         for i in range(1, horizon):

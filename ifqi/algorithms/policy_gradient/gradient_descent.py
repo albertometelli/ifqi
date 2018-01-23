@@ -15,22 +15,29 @@ class GradientDescent(object):
     def get_learning_rate(self, dx):
         pass
 
+    def reduce_learning_rate(self):
+        self.learning_rate = self.learning_rate / 2.
+
+    def set_parameter(self, x):
+        self.x = x
+
 class VanillaGradient(GradientDescent):
 
     def __init__(self, learning_rate, ascent=False):
-        self.leaning_rate = learning_rate
+        self.learning_rate = learning_rate
         self.ascent = ascent
 
     def update(self, dx):
         if self.ascent:
-            self.x += self.leaning_rate * dx
+            self.x += self.learning_rate * dx
         else:
-            self.x -= self.leaning_rate * dx
+            self.x -= self.learning_rate * dx
 
         return self.x
 
     def get_learning_rate(self, dx):
-        return self.leaning_rate
+        return self.learning_rate
+
 
 class AnnellingGradient(GradientDescent):
 
@@ -54,6 +61,7 @@ class AnnellingGradient(GradientDescent):
         self.ite += 1
         self.learning_rate = self.initial_leaning_rate / np.sqrt(self.ite)
         return self.learning_rate
+
 
 class Adam(GradientDescent):
 
@@ -95,6 +103,7 @@ class Adam(GradientDescent):
             self.x -= self.learning_rate * m / (np.sqrt(v) + self.eps)
 
         return self.x
+
 
     def get_learning_rate(self, dx):
         self.t += 1
