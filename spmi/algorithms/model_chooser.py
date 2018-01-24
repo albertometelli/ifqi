@@ -71,6 +71,22 @@ class SetModelChooser(ModelChooser):
 
         return er_advantage, distance_sup, distance_mean, target_model
 
+    def set(self, model, delta_mu, U):
+        er_advantages = np.zeros(self.n_models)
+        sup_distances = np.zeros(self.n_models)
+        mean_distances = np.zeros(self.n_models)
+
+        # advantages and distances computations
+        for i in range(self.n_models):
+            er_advantages[i] = evaluator.compute_model_er_advantage(self.model_set[i], model, U, delta_mu)
+            sup_distances[i] = model_sup_tv_distance(self.model_set[i], model)
+            mean_distances[i] = model_mean_tv_distance(self.model_set[i], model, delta_mu)
+
+        return er_advantages, sup_distances, mean_distances
+
+
+
+
 class DoNotCreateTransitionsGreedyModelChooser(ModelChooser):
     def __init__(self, original_model, nS, nA):
         self.original_model = original_model

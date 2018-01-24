@@ -25,6 +25,23 @@ def model_convex_combination(original_model, model1, model2, coeff):
 
     return tabular_factory.model_from_matrix(matrix, original_model)
 
+def model_convex_combination_set(original_model, model_set, current_model, x):
+
+    n_models = len(model_set)
+
+    # get the matrix of the current model
+    current_model_matrix = current_model.get_matrix()
+
+    # compute the "real" target
+    model_set_combination = 0
+    for i in range(n_models):
+        model_set_combination = model_set_combination + x[i] * model_set[i].get_matrix()
+
+    # compute the update
+    matrix = model_set_combination + (1. - np.sum(x)) * current_model_matrix
+
+    return tabular_factory.model_from_matrix(matrix, original_model)
+
 # method to compute the infinite norm between two given policies
 def policy_sup_tv_distance(policy1, policy2):
     policy1_matrix = policy1.get_matrix()
