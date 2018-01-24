@@ -63,7 +63,8 @@ learner = OnOffLearner(mdp,
                        action_index=range(len(mdp.observation_space.low),
                                           len(mdp.observation_space.low)+len(mdp.action_space.low)),
                        reward_index=len(mdp.observation_space.low)+len(mdp.action_space.low),
-                       verbose=1)
+                       verbose=1,
+                       parallelize=False)
 
 optimal_parameter, history, history_filter = learner.learn()
 history_filter = np.unique(history_filter)

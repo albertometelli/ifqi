@@ -43,7 +43,8 @@ class OnOffLearner:
                 verbose=1,
                 file_online_epochs=None,
                  file_offline_epochs=None,
-                 return_history=1):
+                 return_history=1,
+                parallelize=True):
         self.mdp = mdp
         self.behavioral_policy = behavioral_policy
         self.target_policy = target_policy
@@ -74,6 +75,7 @@ class OnOffLearner:
         self.file_online_epochs = file_online_epochs
         self.file_offline_epochs = file_offline_epochs
         self.return_history = return_history
+        self.parallelize = parallelize
 
         if gradient_updater_outer == 'vanilla':
             self.gradient_updater_outer = VanillaGradient(self.learning_rate, ascent=True)
@@ -135,11 +137,12 @@ class OnOffLearner:
                                            max_iter_opt=self.max_offline_iterations,
                                            max_iter_eval=N,
                                            verbose=self.verbose - 1,
-                                                    state_index=self.state_index,
-                                                    action_index=self.action_index,
-                                                    reward_index=self.reward_index,
-                                                    max_reward=self.mdp.max_reward,
-                                                    min_reward=self.mdp.min_reward)
+                                           state_index=self.state_index,
+                                           action_index=self.action_index,
+                                           reward_index=self.reward_index,
+                                           max_reward=self.mdp.max_reward,
+                                           min_reward=self.mdp.min_reward,
+                                           parallelize=self.parallelize)
 
             gradient, _, _, _, _, _, _ = offline_learner.estimator.estimate()
             self.learning_rate = self.gradient_updater_outer.get_learning_rate(gradient)
