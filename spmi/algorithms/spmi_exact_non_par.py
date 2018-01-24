@@ -125,7 +125,7 @@ class SPMI(object):
                 P[i + 1][0] = p_dist_sup * m_dist_mean_set[i]
                 for j in range(n_models):
                     P[i + 1][j + 1] = gamma * m_dist_mean_set[i] * m_dist_mean_set[j]
-            P = (gamma / (1 - gamma) * self.delta_q / 2) * P
+            P = (gamma / (1 - gamma) * self.delta_q) * P
             # filling the box constraint matrix
             G[0:n_var][0:n_var] = np.identity(n_var)
             G[n_var:2*n_var][0:n_var] = -np.identity(n_var)
@@ -144,12 +144,15 @@ class SPMI(object):
 
             # convex optimization
             cvxopt.solvers.options['show_progress'] = False
+            cvxopt.solvers.options['abstol'] = 1e-20
+            cvxopt.solvers.options['reltol'] = 1e-20
             x = cvxopt.solvers.qp(P, q, G, h)['x']
 
             alpha_star = x[0]
             x_star = np.zeros(n_models)
             for i in range(n_models):
                 x_star[i] = x[i + 1]
+
 
             # policy and model update
             if alpha_star > 0:
