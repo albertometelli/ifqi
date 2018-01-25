@@ -265,10 +265,14 @@ class PolicyGradientLearner(object):
 
         if self.natural:
             #Natural gradient
-            gradient, inv_fisher, avg_return_norm, penalization, H_star, \
+            #gradient, inv_fisher, avg_return_norm, penalization, H_star, \
+            #    stepwise_avg_return, avg_return, avg_discounted_return = \
+            #        self.estimator.estimate_natural(baseline_type=self.baseline_type)
+            gradient, fisher, avg_return_norm, penalization, H_star, \
                 stepwise_avg_return, avg_return, avg_discounted_return = \
                     self.estimator.estimate_natural(baseline_type=self.baseline_type)
-            gradient = np.dot(inv_fisher,gradient)
+            #gradient = np.dot(inv_fisher,gradient)
+            #gradient = la.solve(fisher+eps, gradient)
         else:
             #Vanilla gradient
             gradient, avg_return_norm, penalization, H_star, stepwise_avg_return, avg_return, avg_discounted_return = self._estimator_function(baseline_type=self.baseline_type)
@@ -309,12 +313,16 @@ class PolicyGradientLearner(object):
                             ('Horizon', self.bound.H_star),
                             ('Parameter', theta),
                             ('Gradient', gradient)]))
-            print('Real LR: %s' % self.gradient_updater.get_learning_rate(gradient))
+            if self.natural:
+                print('Real LR: %s' % self.gradient_updater.get_learning_rate(gradient, fisher))
 
         while ite < self.max_iter_opt and gradient_norm > self.tol_opt:
 
             theta_old = np.copy(theta) #Backup for safe stopping
-            theta = self.gradient_updater.update(gradient) #Gradient ascent update
+            if self.natural:
+                theta = self.gradient_updater.update(gradient, fisher) #Gradient ascent update
+            else:
+                theta = self.gradient_updater.update(gradient)
 
             self.target_policy.set_parameter(theta)
             self.estimator.set_target_policy(self.target_policy)
@@ -326,10 +334,15 @@ class PolicyGradientLearner(object):
             old_H_star = H_star
 
             if self.natural:
-                #Natural
-                gradient, inv_fisher, avg_return_norm, penalization, H_star, stepwise_avg_return, avg_return, avg_discounted_return = \
+                # Natural gradient
+                # gradient, inv_fisher, avg_return_norm, penalization, H_star, \
+                #    stepwise_avg_return, avg_return, avg_discounted_return = \
+                #        self.estimator.estimate_natural(baseline_type=self.baseline_type)
+                gradient, fisher, avg_return_norm, penalization, H_star, \
+                stepwise_avg_return, avg_return, avg_discounted_return = \
                     self.estimator.estimate_natural(baseline_type=self.baseline_type)
-                gradient = np.dot(inv_fisher,gradient)
+                # gradient = np.dot(inv_fisher,gradient)
+                #gradient = la.solve(fisher + eps, gradient)
             else:
                 #Vanilla
                 gradient, avg_return_norm, penalization, H_star, stepwise_avg_return, avg_return, avg_discounted_return = self._estimator_function(baseline_type=self.baseline_type)
@@ -368,7 +381,8 @@ class PolicyGradientLearner(object):
                                 ('Horizon', self.bound.H_star),
                                 ('Parameter', theta),
                                 ('Gradient', gradient)]))
-                print('Real LR: %s' % self.gradient_updater.get_learning_rate(gradient))
+                if self.natural:
+                    print('Real LR: %s' % self.gradient_updater.get_learning_rate(gradient, fisher))
 
             if self.adaptive_stop and bound_value < initial_bound_value:
 
@@ -400,7 +414,7 @@ class PolicyGradientLearner(object):
                             if return_history:
                                 history = history[:-1]
 
-                        if self.search_step_size and self.gradient_updater.learning_rate > 1e-6:
+                        if self.search_step_size and self.gradient_updater.learning_rate > 1e-5:
                             self.gradient_updater.reduce_learning_rate()
                             print('ADAPTIVE STEP SIZE - reducing to %s' % self.gradient_updater.learning_rate)
                         else:
@@ -777,12 +791,15 @@ class GradientEstimator(object):
             gradient_estimate = gradient_estimate + self.gamma ** k * penalization_gradient
 
         fisher = np.mean(fisher_samples,0)
-        inv_fisher = np.linalg.inv(fisher+eps)
+        #inv_fisher = np.linalg.inv(fisher+eps)
 
         avg_return /= self.max_iter
         avg_discounted_return /= self.max_iter
 
-        return gradient_estimate, inv_fisher, np.mean(np.sum(traj_returns * ws, axis=1)), penalization, H_star, np.mean(np.cumsum(traj_returns * ws, axis=1), axis=0), avg_return, avg_discounted_return
+        return gradient_estimate, fisher, np.mean(np.sum(traj_returns * ws, axis=1)), penalization, H_star, np.mean(
+            np.cumsum(traj_returns * ws, axis=1), axis=0), avg_return, avg_discounted_return
+
+        #return gradient_estimate, inv_fisher, np.mean(np.sum(traj_returns * ws, axis=1)), penalization, H_star, np.mean(np.cumsum(traj_returns * ws, axis=1), axis=0), avg_return, avg_discounted_return
 
 
     def compute_fisher_sample(self,traj):

@@ -47,7 +47,8 @@ learner = OnOffLearner(mdp,
                        reward_index=5,
                        verbose=2,
                        file_offline_epochs='cartpole_offline.csv',
-                       file_online_epochs='cartpole_online.csv')
+                       file_online_epochs='cartpole_online.csv',
+                       natural=True)
 
 optimal_parameter, history, history_filter = learner.learn()
 history_filter = np.unique(history_filter)

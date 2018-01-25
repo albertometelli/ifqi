@@ -43,8 +43,11 @@ class ChebychevAdaptiveGradient(GradientDescent):
     def get_learning_rate(self, dx, riemann_tensor=None):
         riemann_tensor = np.eye(len(dx)) if riemann_tensor is None else riemann_tensor
         self.gradient = la.solve(riemann_tensor, dx)
+        print('Natural gradient: %s' % self.gradient)
 
         gradient_norm = np.asscalar(np.dot(self.gradient, dx))
+
+        print('Natural gradient norm: %s' % gradient_norm)
         if self.c**2 / self.N <= gradient_norm:
             return self.learning_rate
         return min(self.learning_rate, 1./np.sqrt(self.c**2 / self.N - gradient_norm))
