@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.linalg as la
 
 class GradientDescent(object):
 
@@ -9,7 +10,7 @@ class GradientDescent(object):
     def initialize(self, x0):
         self.x = x0
 
-    def update(self, dx):
+    def update(self, dx, riemann_tensor=None):
         pass
 
     def get_learning_rate(self, dx):
@@ -21,13 +22,40 @@ class GradientDescent(object):
     def set_parameter(self, x):
         self.x = x
 
+class ChebychevAdaptiveGradient(GradientDescent):
+
+    def __init__(self, learning_rate, N, delta, gamma, h, ascent=False):
+        self.learning_rate = learning_rate
+        self.N = N
+        self.c = (1 - gamma**h) / (1 - gamma) * np.sqrt(1./delta - 1)
+        self.ascent = ascent
+
+    def update(self, dx, riemann_tensor=None):
+        learning_rate = self.get_learning_rate(dx, riemann_tensor)
+
+        if self.ascent:
+            self.x += learning_rate * self.gradient
+        else:
+            self.x -= learning_rate * self.gradient
+
+        return self.x
+
+    def get_learning_rate(self, dx, riemann_tensor=None):
+        riemann_tensor = np.eye(len(dx)) if riemann_tensor is None else riemann_tensor
+        self.gradient = la.solve(riemann_tensor, dx)
+
+        gradient_norm = np.asscalar(np.dot(self.gradient, dx))
+        if self.c**2 / self.N <= gradient_norm:
+            return self.learning_rate
+        return min(self.learning_rate, 1./np.sqrt(self.c**2 / self.N - gradient_norm))
+
 class VanillaGradient(GradientDescent):
 
     def __init__(self, learning_rate, ascent=False):
         self.learning_rate = learning_rate
         self.ascent = ascent
 
-    def update(self, dx):
+    def update(self, dx, riemann_tensor=None):
         if self.ascent:
             self.x += self.learning_rate * dx
         else:
@@ -47,7 +75,7 @@ class AnnellingGradient(GradientDescent):
         self.ascent = ascent
         self.ite = 0
 
-    def update(self, dx):
+    def update(self, dx, riemann_tensor=None):
         if self.ascent:
             self.x += self.learning_rate * dx
         else:
@@ -85,7 +113,7 @@ class Adam(GradientDescent):
         self.v = 0
         self.t = 0
 
-    def update(self, dx):
+    def update(self, dx, riemann_tensor=None):
         self.t += 1
         self.m = self.beta1 * self.m + (1 - self.beta1) * dx
         self.v = self.beta2 * self.v + (1 - self.beta2) * (dx ** 2)
@@ -132,7 +160,7 @@ class AdaGrad(GradientDescent):
         self.x = x0
         self.g2 = 0
 
-    def update(self, dx):
+    def update(self, dx, riemann_tensor=None):
         self.g2 += dx ** 2
 
         if self.ascent:
@@ -158,7 +186,7 @@ class RMSProp(GradientDescent):
         self.x = x0
         self.g2 = 0
 
-    def update(self, dx):
+    def update(self, dx, riemann_tensor=None):
         self.g2 = self.gamma * self.g2 + (1 - self.gamma) * dx ** 2
 
         if self.ascent:
