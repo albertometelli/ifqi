@@ -226,6 +226,8 @@ class PolicyGradientLearner(object):
             self.gradient_updater = Adam(self.learning_rate, ascent=True)
         elif gradient_updater == 'annelling':
             self.gradient_updater = AnnellingGradient(self.learning_rate, ascent=True)
+        elif gradient_updater == 'chebychev-adaptive':
+            self.gradient_updater = ChebychevAdaptiveGradient(self.learning_rate, self.max_iter_eval, self.delta, self.gamma, self.horizon, ascent=True)
         else:
             raise ValueError('Gradient updater not found.')
 
@@ -307,6 +309,7 @@ class PolicyGradientLearner(object):
                             ('Horizon', self.bound.H_star),
                             ('Parameter', theta),
                             ('Gradient', gradient)]))
+            print('Real LR: %s' % self.gradient_updater.get_learning_rate(gradient))
 
         while ite < self.max_iter_opt and gradient_norm > self.tol_opt:
 
@@ -365,6 +368,7 @@ class PolicyGradientLearner(object):
                                 ('Horizon', self.bound.H_star),
                                 ('Parameter', theta),
                                 ('Gradient', gradient)]))
+                print('Real LR: %s' % self.gradient_updater.get_learning_rate(gradient))
 
             if self.adaptive_stop and bound_value < initial_bound_value:
 
