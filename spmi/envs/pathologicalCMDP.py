@@ -11,7 +11,7 @@ class PathologicalCMDP(discrete.DiscreteEnv):
         self.nS = len(S)
         self.nA = len(A)
 
-        self.gamma = 1
+        self.gamma = 0.99
         self.horizon = 5
 
         self.isd = np.zeros(self.nS)

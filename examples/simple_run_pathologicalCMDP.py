@@ -9,7 +9,7 @@ import copy
 
 dir_path = "/Users/mirco/Desktop/Simulazioni/optSPMI_pathologicalCMDP"
 
-mdp = PathologicalCMDP(p=0, w=0.5, M=100)
+mdp = PathologicalCMDP(p=0.1, w=0.5, M=100)
 
 original_model = copy.deepcopy(mdp.P)
 
@@ -24,7 +24,7 @@ policy_chooser = GreedyPolicyChooser(mdp.nS, mdp.nA)
 model_chooser = SetModelChooser(model_set, mdp.nS, mdp.nA)
 
 eps = 0.0
-spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=1000, use_target_trick=True, delta_q=1)
+spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=30, use_target_trick=True, delta_q=1)
 
 
 #-------------------------------------------------------------------------------
@@ -41,10 +41,13 @@ opt_p_dist_mean = np.array(spmi.p_dist_mean)
 opt_m_dist_sup = np.array(spmi.m_dist_sup)
 opt_m_dist_mean = np.array(spmi.m_dist_mean)
 opt_alfas = np.array(spmi.alfas)
+opt_x = np.array(spmi.x)
 opt_betas = np.array(spmi.betas)
 opt_p_change = np.cumsum(1 - np.array(spmi.p_change))
 opt_m_change = np.cumsum(1 - np.array(spmi.m_change))
 opt_coefficient = np.array(spmi.coefficients)
+opt_w_target = np.array(spmi.w_target)
+opt_bound = np.array(spmi.bound)
 
 
 # plt.switch_backend('pdf')
@@ -91,6 +94,8 @@ betas = np.array(spmi.betas)
 p_change = np.cumsum(1 - np.array(spmi.p_change))
 m_change = np.cumsum(1 - np.array(spmi.m_change))
 coefficient = np.array(spmi.coefficients)
+bound = np.array(spmi.bound)
+
 
 plt.switch_backend('pdf')
 
@@ -128,11 +133,20 @@ plt.legend(loc='best', fancybox=True)
 plt.savefig(dir_path + "/advantage comparison 1")
 
 plt.figure()
+plt.title('Beta comparison')
+plt.xlabel('Iteration')
+plt.plot(iterations, betas, color='tab:blue', linestyle='dotted', label='beta spmi')
+plt.plot(opt_iterations, opt_betas, color='tab:orange', linestyle='dotted', label='beta spmi_opt')
+plt.legend(loc='best', fancybox=True)
+plt.yscale('log')
+plt.savefig(dir_path + "/beta x_i comparison")
+
+plt.figure()
 plt.title('Beta and X_i')
 plt.xlabel('Iteration')
 plt.plot(iterations, betas, color='tab:blue', linestyle='dotted', label='beta spmi')
-plt.plot(opt_iterations, opt_betas[:, 0], color='tab:red', linestyle='dotted', label='x_0 spmi_opt')
-plt.plot(opt_iterations, opt_betas[:, 1], color='tab:orange', linestyle='dotted', label='x_1 spmi_opt')
+plt.plot(opt_iterations, opt_x[:, 0], color='tab:red', linestyle='dotted', label='x_0 spmi_opt')
+plt.plot(opt_iterations, opt_x[:, 1], color='tab:orange', linestyle='dotted', label='x_1 spmi_opt')
 plt.legend(loc='best', fancybox=True)
 plt.yscale('log')
 plt.savefig(dir_path + "/beta x_i comparison")
@@ -141,7 +155,7 @@ plt.figure()
 plt.title('Beta and X_0')
 plt.xlabel('Iteration')
 plt.plot(iterations, betas, color='tab:blue', linestyle='dotted', label='beta spmi')
-plt.plot(opt_iterations, opt_betas[:, 0], color='tab:red', linestyle='dotted', label='x_0 spmi_opt')
+plt.plot(opt_iterations, opt_x[:, 0], color='tab:red', linestyle='dotted', label='x_0 spmi_opt')
 plt.legend(loc='best', fancybox=True)
 plt.savefig(dir_path + "/beta x_0 comparison")
 
@@ -149,7 +163,7 @@ plt.figure()
 plt.title('Beta and X_1')
 plt.xlabel('Iteration')
 plt.plot(iterations, betas, color='tab:blue', linestyle='dotted', label='beta spmi')
-plt.plot(opt_iterations, opt_betas[:, 1], color='tab:orange', linestyle='dotted', label='x_1 spmi_opt')
+plt.plot(opt_iterations, opt_x[:, 1], color='tab:orange', linestyle='dotted', label='x_1 spmi_opt')
 plt.legend(loc='best', fancybox=True)
 plt.savefig(dir_path + "/beta x_1 comparison")
 
@@ -160,3 +174,27 @@ plt.plot(iterations, coefficient, color='tab:blue', linestyle='dashed', label='s
 plt.plot(opt_iterations, opt_coefficient, color='tab:red', linestyle='dotted', label='spmi_opt')
 plt.legend(loc='best', fancybox=True)
 plt.savefig(dir_path + "/model comparison")
+
+plt.figure()
+plt.title('Model coefficient and Target coefficient')
+plt.xlabel('Iteration')
+plt.plot(opt_iterations, opt_w_target[:, 0], color='tab:red', linestyle='dashed', label='target model')
+plt.plot(opt_iterations, opt_coefficient, color='tab:orange', linestyle='dotted', label='current model')
+plt.legend(loc='best', fancybox=True)
+plt.savefig(dir_path + "/target current comparison")
+
+plt.figure()
+plt.title('Beta comparison')
+plt.xlabel('Iteration')
+plt.plot(iterations, betas, color='tab:blue', linestyle='dotted', label='beta spmi')
+plt.plot(opt_iterations, opt_betas, color='tab:orange', linestyle='dotted', label='beta spmi_opt')
+plt.legend(loc='best', fancybox=True)
+plt.savefig(dir_path + "/beta comparison")
+
+plt.figure()
+plt.title('Bound comparison')
+plt.xlabel('Iteration')
+plt.plot(iterations, bound, color='tab:red', linestyle='dashed', label='spmi')
+plt.plot(opt_iterations, opt_bound, color='tab:blue', linestyle='dotted', label='spmi_opt')
+plt.legend(loc='best', fancybox=True)
+plt.savefig(dir_path + "/bound comparison")

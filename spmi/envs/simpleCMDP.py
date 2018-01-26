@@ -18,6 +18,8 @@ class SimpleCMDP(discrete.DiscreteEnv):
         self.isd[0] = 1
         self.mu = self.isd
 
+        self.R = [0, 0, 1, 0]
+
         self.P0 = {s: {a: [] for a in range(self.nA)} for s in range(self.nS)}
         self.P0[0][0].append((p, 1, 0, False))
         self.P0[0][0].append((1 - p, 3, 0, False))
