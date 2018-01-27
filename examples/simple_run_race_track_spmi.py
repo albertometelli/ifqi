@@ -26,7 +26,7 @@ spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=50000, use_target_
 
 #-------------------------------------------------------------------------------
 #SPMI
-policy, model = spmi.safe_policy_model_iteration(initial_policy, initial_model)
+policy, model = spmi.spmi(initial_policy, initial_model)
 
 iterations = np.array(range(spmi.iteration))
 evaluations = np.array(spmi.evaluations)

@@ -63,7 +63,7 @@ if __name__ == '__main__':
 
     #-------------------------------------------------------------------------------
     #SPMI
-    policy, model = spmi.safe_policy_model_iteration(initial_policy, initial_model)
+    policy, model = spmi.spmi(initial_policy, initial_model)
 
     iterations = np.array(range(spmi.iteration))
     evaluations = np.array(spmi.evaluations)
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     #-------------------------------------------------------------------------------
     #SPMI sup
     mdp.set_model(original_model)
-    policy, model = spmi.safe_policy_model_iteration_sup(initial_policy, initial_model)
+    policy, model = spmi.spmi_sup(initial_policy, initial_model)
 
     sup_iterations = np.array(range(spmi.iteration))
     sup_evaluations = np.array(spmi.evaluations)
@@ -101,7 +101,7 @@ if __name__ == '__main__':
     #-------------------------------------------------------------------------------
     #SPMI no full step
     mdp.set_model(original_model)
-    policy, model = spmi.safe_policy_model_iteration_no_full_step(initial_policy, initial_model)
+    policy, model = spmi.spmi_no_full(initial_policy, initial_model)
 
     int_iterations = np.array(range(spmi.iteration))
     int_evaluations = np.array(spmi.evaluations)
@@ -120,9 +120,9 @@ if __name__ == '__main__':
     #-------------------------------------------------------------------------------
     #SPMI alternated
     mdp.set_model(original_model)
-    policy, model = spmi.safe_policy_model_iteration_alternated(initial_policy, initial_model)
+    policy, model = spmi.spmi_alt(initial_policy, initial_model)
 
-    spmi.safe_policy_model_iteration_alternated(initial_policy, initial_model)
+    spmi.spmi_alt(initial_policy, initial_model)
 
     alt_iterations = np.array(range(spmi.iteration))
     alt_evaluations = np.array(spmi.evaluations)
@@ -141,9 +141,9 @@ if __name__ == '__main__':
     #-------------------------------------------------------------------------------
     #SPMI sequential
     mdp.set_model(original_model)
-    policy, model = spmi.safe_policy_model_iteration_sequential(initial_policy, initial_model)
+    policy, model = spmi.spmi_seq_pm(initial_policy, initial_model)
 
-    spmi.safe_policy_model_iteration_sequential(initial_policy, initial_model)
+    spmi.spmi_seq_pm(initial_policy, initial_model)
 
     seq_iterations = np.array(range(spmi.iteration))
     seq_evaluations = np.array(spmi.evaluations)

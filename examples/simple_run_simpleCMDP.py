@@ -79,7 +79,7 @@ opt_bound = np.array(spmi.bound)
 #SPMI
 
 mdp.set_model(original_model)
-spmi.safe_policy_model_iteration(initial_policy, initial_model)
+spmi.spmi(initial_policy, initial_model)
 
 iterations = np.array(range(spmi.iteration))
 evaluations = np.array(spmi.evaluations)
@@ -177,11 +177,18 @@ plt.savefig(dir_path + "/model comparison")
 plt.figure()
 plt.title('Model coefficient and Target coefficient')
 plt.xlabel('Iteration')
-plt.plot(iterations, opt_w_target[:, 0], color='tab:red', linestyle='dashed', label='target model')
+plt.plot(opt_iterations, opt_w_target[:, 0], color='tab:red', linestyle='dashed', label='target model')
 plt.plot(opt_iterations, opt_coefficient, color='tab:orange', linestyle='dotted', label='current model')
 plt.legend(loc='best', fancybox=True)
 plt.yscale('log')
 plt.savefig(dir_path + "/target current comparison")
+
+plt.figure()
+plt.title('Model coefficient and Target coefficient')
+plt.xlabel('Iteration')
+plt.plot(opt_iterations, opt_w_target[:, 0], color='tab:red', linestyle='dashed', label='target model')
+plt.legend(loc='best', fancybox=True)
+plt.savefig(dir_path + "/target")
 
 plt.figure()
 plt.title('Bound comparison')

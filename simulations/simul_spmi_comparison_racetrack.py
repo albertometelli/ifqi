@@ -37,7 +37,7 @@ spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=30000, use_target_
 
 #-------------------------------------------------------------------------------
 #SPMI
-spmi.safe_policy_model_iteration(initial_policy, initial_model)
+spmi.spmi(initial_policy, initial_model)
 
 iterations = np.array(range(spmi.iteration))
 evaluations = np.array(spmi.evaluations)
@@ -57,7 +57,7 @@ spmi.save_simulation(dir_path, 'spmi.csv')
 #-------------------------------------------------------------------------------
 #SPMI sup
 mdp.set_model(original_model)
-spmi.safe_policy_model_iteration_sup(initial_policy, initial_model)
+spmi.spmi_sup(initial_policy, initial_model)
 
 sup_iterations = np.array(range(spmi.iteration))
 sup_evaluations = np.array(spmi.evaluations)
@@ -77,7 +77,7 @@ spmi.save_simulation(dir_path, 'sup.csv')
 #-------------------------------------------------------------------------------
 #SPMI no full step
 mdp.set_model(original_model)
-spmi.safe_policy_model_iteration_no_full_step(initial_policy, initial_model)
+spmi.spmi_no_full(initial_policy, initial_model)
 
 int_iterations = np.array(range(spmi.iteration))
 int_evaluations = np.array(spmi.evaluations)
@@ -97,7 +97,7 @@ spmi.save_simulation(dir_path,  'nofull.csv')
 #-------------------------------------------------------------------------------
 #SPMI alternated
 mdp.set_model(original_model)
-spmi.safe_policy_model_iteration_alternated(initial_policy, initial_model)
+spmi.spmi_alt(initial_policy, initial_model)
 
 alt_iterations = np.array(range(spmi.iteration))
 alt_evaluations = np.array(spmi.evaluations)
@@ -117,7 +117,7 @@ spmi.save_simulation(dir_path, 'alt.csv')
 #-------------------------------------------------------------------------------
 #SPMI sequential
 mdp.set_model(original_model)
-spmi.safe_policy_model_iteration_sequential(initial_policy, initial_model)
+spmi.spmi_seq_pm(initial_policy, initial_model)
 
 seq_iterations = np.array(range(spmi.iteration))
 seq_evaluations = np.array(spmi.evaluations)

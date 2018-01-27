@@ -26,7 +26,7 @@ model_chooser = DoNotCreateTransitionsGreedyModelChooser(mdp.P, mdp.nS, mdp.nA)
 eps = 0.0
 delta = 0.1
 spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=50000, use_target_trick=True)
-policy, model = spmi.safe_policy_model_iteration(initial_policy, initial_model)
+policy, model = spmi.spmi(initial_policy, initial_model)
 
 iterations = np.array(range(spmi.iteration))
 evaluations = np.array(spmi.evaluations)

@@ -26,7 +26,7 @@ spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=100000, use_target
 
 #-------------------------------------------------------------------------------
 #SPMI
-policy, model = spmi.safe_policy_model_iteration(initial_policy, initial_model)
+policy, model = spmi.spmi(initial_policy, initial_model)
 
 spmi.save_simulation(dir_path, "execution data")
 

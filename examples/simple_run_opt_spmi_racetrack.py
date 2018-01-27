@@ -24,7 +24,7 @@ policy_chooser = GreedyPolicyChooser(mdp.nS, mdp.nA)
 model_chooser = SetModelChooser(model_set, mdp.nS, mdp.nA)
 
 eps = 0.0
-spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=500, use_target_trick=True, delta_q=1)
+spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=300, use_target_trick=True, delta_q=1)
 
 
 #-------------------------------------------------------------------------------
@@ -78,7 +78,7 @@ opt_ntt_bound = np.array(spmi.bound)
 #SPMI
 
 mdp.set_model(original_model)
-spmi.safe_policy_model_iteration(initial_policy, initial_model)
+spmi.spmi(initial_policy, initial_model)
 
 iterations = np.array(range(spmi.iteration))
 evaluations = np.array(spmi.evaluations)
