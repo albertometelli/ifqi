@@ -31,6 +31,12 @@ class Bound(object):
         self.behavioral_policy = behavioral_policy
         self.target_policy = target_policy
 
+    def get_value(self, J_hat, var_J_hat=None):
+        return J_hat + self.penalization()
+
+    def get_gradient(self, gradient, return_variance=None, variance_gradient=None):
+        return gradient + self.gradient_penalization()
+
     def penalization(self):
         pass
 
@@ -123,6 +129,28 @@ class HoeffdingBoundPerDecisionRatioImportanceWeighting(HoeffdingBound):
             return sys.maxsize
         return int(round(H_star))
 
+class EmpiricalBound(Bound):
+    def set_policies(self, behavioral_policy, target_policy):
+        super(EmpiricalBound, self).set_policies(behavioral_policy, target_policy)
+        self.set_horizon(self.horizon)
+
+    def compute_optimal_horizon(self):
+        return self.horizon
+
+class EmpiricalChebyschevBound(EmpiricalBound):
+    def get_value(self, J_hat, var_J_hat):
+        return J_hat - np.sqrt(var_J_hat/self.N * (self.N - 1) / (self.delta * np.sqrt(self.N * (self.N - 1)) - 1))
+
+    def get_gradient(self, gradient, return_variance, variance_gradient):
+        return gradient - np.sqrt(1. / self.N * (self.N - 1) / (self.delta * np.sqrt(self.N * (self.N - 1)) - 1)) * 1. / (2. * np.sqrt(return_variance)) * variance_gradient
+
+class EmpiricalStudentBound(EmpiricalBound):
+    def get_value(self, J_hat, var_J_hat):
+        return J_hat - sts.t.ppf(1 - self.delta, self.N - 1) * np.sqrt(var_J_hat / self.N)
+
+    def get_gradient(self, gradient, return_variance, variance_gradient):
+        return gradient - sts.t.ppf(1 - self.delta, self.N - 1) * np.sqrt(1. / self.N) * 1. / (2. * np.sqrt(return_variance)) * variance_gradient
+
 class ChebyshevBound(Bound):
 
     def set_policies(self, behavioral_policy, target_policy):
@@ -130,6 +158,28 @@ class ChebyshevBound(Bound):
         self.M_2 = self.target_policy.M_2(self.behavioral_policy)
         self.M_2_gradient = self.target_policy.gradient_M_2(self.behavioral_policy)
         self.set_horizon(self.horizon)
+
+
+class ChebyshevBoundRatioImportanceWeightingOptimized(ChebyshevBound):
+
+    def get_value(self, J_hat):
+        c = np.sqrt(1. / self.N * (1. / self.delta - 1))
+        c2 = c ** 2
+        m = (1. - self.gamma ** self.H_star) / (1. - self.gamma) * self.M_2 ** \
+            (self.H_star / 2.)
+        b = (self.gamma ** self.H_star - self.gamma ** self.horizon) / (
+            1 - self.gamma)
+
+        return 1. / (1 + c2) * (J_hat - b - np.sqrt(c2 * (1 + c2) * m ** 2 - c2 * (J_hat - b) ** 2))
+
+    def penalization(self):
+        return 0.
+
+    def gradient_penalization(self):
+        return 0.
+
+    def get_optimal_horizon(self, approximated=True):
+        raise NotImplementedError()
 
 class ChebyshevBoundRatioImportanceWeighting(ChebyshevBound):
 
