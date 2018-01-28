@@ -44,8 +44,9 @@ class OnOffLearner:
                 file_online_epochs=None,
                  file_offline_epochs=None,
                  return_history=1,
-                parallelize=True,
-                 natural=False):
+                parallelize=False,
+                 natural=False,
+                 normalize_return=False):
         self.mdp = mdp
         self.behavioral_policy = behavioral_policy
         self.target_policy = target_policy
@@ -78,6 +79,7 @@ class OnOffLearner:
         self.return_history = return_history
         self.parallelize = parallelize
         self.natural = natural
+        self.normalize_return = normalize_return
 
         if gradient_updater_outer == 'vanilla':
             self.gradient_updater_outer = VanillaGradient(self.learning_rate, ascent=True)
@@ -145,9 +147,10 @@ class OnOffLearner:
                                            max_reward=self.mdp.max_reward,
                                            min_reward=self.mdp.min_reward,
                                            parallelize=self.parallelize,
-                                                    natural=self.natural)
+                                                    natural=self.natural,
+                                                    normalize_return=self.normalize_return)
 
-            gradient, _, _, _, _, _, _ = offline_learner.estimator.estimate()
+            gradient, _, _, _, _, _, _, _, _ = offline_learner.estimator.estimate()
             self.learning_rate = self.gradient_updater_outer.get_learning_rate(gradient)
             offline_learner.gradient_updater.learning_rate = self.learning_rate
 
