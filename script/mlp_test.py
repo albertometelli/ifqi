@@ -23,16 +23,13 @@ initial_sigma = 1.
 #behavioral_policy = GaussianPolicyLinearFeatureMeanCholeskyVar(feature, initial_parameter, initial_sigma, max_feature=1.)
 '''
 
-sess = get_session()
 target_policy = FactGaussianPolicyNNMeanVar('target',
-                                            sess,
                                             mdp.observation_space,
                                             mdp.action_space,
                                             hid_size=2,
                                             num_hid_layers=2)
 
 behavioral_policy = FactGaussianPolicyNNMeanVar('behavioral',
-                                            sess,
                                             mdp.observation_space,
                                             mdp.action_space,
                                             hid_size=2,

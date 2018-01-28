@@ -667,9 +667,9 @@ class GaussianPolicyLinearFeatureMeanCholeskyVar(ParametricPolicy):
 class FactGaussianPolicyNNMeanVar(ParametricPolicy):
 
     #Static attribute
-    copy_id = 0
+    copy_id = {}
 
-    def __init__(self, name, sess, ob_space, ac_space, hid_size=2,
+    def __init__(self, name, ob_space, ac_space, hid_size=2,
                  num_hid_layers=2):
         self.ob_space = ob_space
         self.ac_space = ac_space
@@ -677,16 +677,18 @@ class FactGaussianPolicyNNMeanVar(ParametricPolicy):
         self.num_hid_layers = num_hid_layers
         self.fixed_var = True
         self.name = name
-        print(self.name + '_'+str(self.copy_id))
-        self._pol = _MlpPolicy(self.name + '_'+str(self.copy_id),
+        if not self.name in self.copy_id:
+            FactGaussianPolicyNNMeanVar.copy_id[self.name] = 0
+        else:
+            FactGaussianPolicyNNMeanVar.copy_id[self.name]+=1
+        #print('Create ' + self.name + '_'+str(self.copy_id[self.name]))
+        self._pol = _MlpPolicy(self.name + '_'+str(self.copy_id[self.name]),
                                  self.ob_space,
                                  self.ac_space,
                                  self.hid_size,
                                  self.num_hid_layers,
                                  gaussian_fixed_var=self.fixed_var)
         self.max_phi = 1 #true for tanh outer activations
-        self.sess = sess
-        sess.run(tf.global_variables_initializer())
 
     def reshape_s(self,state):
         return np.array(state).reshape(self.ob_space.shape)
@@ -711,13 +713,14 @@ class FactGaussianPolicyNNMeanVar(ParametricPolicy):
         return self._pol.get_score(state,action)
 
     def get_parameter(self):
-        return self._pol.get_param()
+        with tf.variable_scope(self.name):
+            return self._pol.get_param()
 
     def get_all_parameters(self):
         return self._pol.get_param()
 
     def set_parameter(self,param,outer=False):
-        self._pol.set_param(param,self.sess)
+        self._pol.set_param(param)
 
     def get_n_parameters(self):
         return  len(self.get_parameter())
@@ -744,10 +747,8 @@ class FactGaussianPolicyNNMeanVar(ParametricPolicy):
     def gradient_M_2(self,other):
         return 0 #Not implemented!!
 
-    def get_copy(self):
-        FactGaussianPolicyNNMeanVar.copy_id+=1
+    def get_copy(self): 
         a_copy = FactGaussianPolicyNNMeanVar(name = self.name,
-                                             sess = self.sess,
                                              ob_space = self.ob_space,
                                              ac_space = self.ac_space,
                                              hid_size = self.hid_size,

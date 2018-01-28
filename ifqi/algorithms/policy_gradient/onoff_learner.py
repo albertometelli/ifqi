@@ -117,7 +117,7 @@ class OnOffLearner:
 
         while i < self.online_iterations:
             offline_trajectory_generator = OfflineTrajectoryGenerator(dataset)
-
+ 
             offline_learner = PolicyGradientLearner(offline_trajectory_generator,
                                                     self.target_policy,
                                            self.mdp.gamma,
@@ -147,15 +147,13 @@ class OnOffLearner:
                                            parallelize=self.parallelize,
                                                     natural=self.natural)
 
-            gradient, _, _, _, _, _, _ = offline_learner.estimator.estimate()
+            gradient, _, _, _, _, _, _ = offline_learner.estimator.estimate() 
             self.learning_rate = self.gradient_updater_outer.get_learning_rate(gradient)
             offline_learner.gradient_updater.learning_rate = self.learning_rate
 
-            initial_parameter = self.behavioral_policy.get_parameter()
-
+            initial_parameter = self.behavioral_policy.get_parameter() 
             optimal_parameter, offline_history = offline_learner.optimize(initial_parameter,
-                                                                          return_history=self.return_history)
-
+                                                                          return_history=self.return_history) 
             offline_iterations = len(offline_history) - 1
             offline_history_lens.append(offline_iterations)
             history.extend(offline_history[:-1])
