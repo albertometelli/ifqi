@@ -383,13 +383,19 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         # instantiation of model rep for vertex models
         self.P_highspeed_noboost_sas = self.p_sas(self.P_highspeed_noboost)
         self.P_highspeed_noboost_sa = self.p_sa(self.P_highspeed_noboost_sas)
-        self.P_lowspeed_boost_sas = self.p_sas(self.P_lowspeed_noboost)
+        self.P_lowspeed_noboost_sas = self.p_sas(self.P_lowspeed_noboost)
+        self.P_lowspeed_noboost_sa = self.p_sa(self.P_lowspeed_noboost_sas)
+        self.P_highspeed_boost_sas = self.p_sas(self.P_highspeed_boost)
+        self.P_highspeed_boost_sa = self.p_sa(self.P_highspeed_boost_sas)
+        self.P_lowspeed_boost_sas = self.p_sas(self.P_lowspeed_boost)
         self.P_lowspeed_boost_sa = self.p_sa(self.P_lowspeed_boost_sas)
         # linear combination of vertex models with initial parameters
         # default coefficient k_balance: 0.5
-        if initial_configuration is None:
-            initial_configuration = 0.5
-        self.k = initial_configuration
+        self.initial_configuration = initial_configuration
+        if self.initial_configuration is None:
+            self.initial_configuration = 0.5
+        self.k = self.initial_configuration
+        self.model_vector = np.array([self.k, 1 - self.k])
         self.P = P = self.model_configuration(self.k)
 
         # R ----------
@@ -455,6 +461,19 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         data_frame = pd.read_csv(path, sep=',', dtype=object)
         data_frame = data_frame.replace(np.nan, ' ', regex=True)
         return data_frame.values
+
+    def set_initial_configuration(self, model):
+        self.P = model
+        self.P_sas = self.p_sas(self.P)
+        self.P_sa = self.p_sa(self.P_sas)
+        self.k = self.initial_configuration
+        self.model_vector = np.array([self.k, 1 - self.k])
+        self.P = self.model_configuration(self.k)
+
+    def set_model(self, model):
+        self.P = model
+        self.P_sas = self.p_sas(self.P)
+        self.P_sa = self.p_sa(self.P_sas)
 
     # linear combination of the extreme models(P_highspeed_noboost,P_lowspeed_noboost) with parameter k
     def model_configuration(self, k):

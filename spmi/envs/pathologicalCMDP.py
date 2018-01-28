@@ -54,6 +54,9 @@ class PathologicalCMDP(discrete.DiscreteEnv):
         self.R_sas = r_sas(self.P, self.nS, self.nA)
         self.R = r_sa(self.R_sas, self.nS, self.nA)
 
+        self.initial_configuration = w
+        self.model_vector = np.array([w, 1 - w])
+
         super(PathologicalCMDP, self).__init__(self.nS, self.nA, self.P, self.isd)
 
     def set_model(self, model):
@@ -62,6 +65,14 @@ class PathologicalCMDP(discrete.DiscreteEnv):
         self.P_sa = p_sa(self.P_sas, self.nS, self.nA)
         self.R_sas = r_sas(self.P, self.nS, self.nA)
         self.R = r_sa(self.R_sas, self.nS, self.nA)
+
+    def set_initial_configuration(self, model):
+        self.P = copy.deepcopy(model)
+        self.P_sas = p_sas(self.P, self.nS, self.nA)
+        self.P_sa = p_sa(self.P_sas, self.nS, self.nA)
+        self.R_sas = r_sas(self.P, self.nS, self.nA)
+        self.R = r_sa(self.R_sas, self.nS, self.nA)
+        self.model_vector = np.array([self.initial_configuration, 1 - self.initial_configuration])
 
     def get_valid_actions(self, s):
         return [0]

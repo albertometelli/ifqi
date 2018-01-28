@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 dir_path = "/Users/mirco/Desktop/Simulazioni/SPMI_non_par"
 
-mdp = RaceTrackConfigurableEnv(track_file='track0', initial_configuration=0.5)
+mdp = RaceTrackConfigurableEnv(track_file='track0_start', initial_configuration=0.5)
 
 uniform_policy = UniformPolicy(mdp)
 

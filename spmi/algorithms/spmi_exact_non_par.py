@@ -71,7 +71,7 @@ class SPMI(object):
         self.betas = list()
         self.x = list()
         self.w_target = list()
-        self.coefficients = list()
+        self.w_current = list()
         self.p_change = list()
         self.m_change = list()
         self.bound = list()
@@ -1154,15 +1154,33 @@ class SPMI(object):
         print('model dist sup: {0}'.format(m_dist_sup))
         print('model dist mean: {0}'.format(m_dist_mean))
 
-        # coefficient computation and print
-        if isinstance(self.model_chooser, SetModelChooser) and len(self.model_chooser.model_set) == 2:
-            P = self.mdp.P_sa
-            P1 = self.model_chooser.model_set[0].get_matrix()
-            P2 = self.model_chooser.model_set[1].get_matrix()
-            k = (P - P2) / (P1 - P2 + 1e-24)
-            k = np.max(k)
-            print('\ncurrent k: {0}'.format(k))
-            self.coefficients.append(k)
+        # model vector coefficients computation and print
+        if isinstance(self.model_chooser, SetModelChooser):
+            model_vector = self.mdp.model_vector
+            model_set = self.model_chooser.model_set
+            n_models = len(model_set)
+            for i in range(n_models):
+                if self.model_equiv_check(model_set[i], target_model):
+                    target_index = i
+                    break
+            target_vector = np.zeros(n_models)
+            target_vector[target_index] = 1
+            new_model_vector = beta_star * target_vector + (1 - beta_star) * model_vector
+            self.mdp.model_vector = new_model_vector
+            print('\ntarget_model: {0}'.format(target_vector))
+            print('current_model: {0}'.format(new_model_vector))
+            self.w_current.append(new_model_vector)
+            self.w_target.append(target_vector)
+
+        # # coefficient computation and print
+        # if isinstance(self.model_chooser, SetModelChooser) and len(self.model_chooser.model_set) == 2:
+        #     P = self.mdp.P_sa
+        #     P1 = self.model_chooser.model_set[0].get_matrix()
+        #     P2 = self.model_chooser.model_set[1].get_matrix()
+        #     k = (P - P2) / (P1 - P2 + 1e-24)
+        #     k = np.max(k)
+        #     print('\ncurrent k: {0}'.format(k))
+        #     self.coefficients.append(k)
 
         # iteration update
         self.iteration = self.iteration + 1
@@ -1205,15 +1223,23 @@ class SPMI(object):
         print('policy dist sup: {0}'.format(p_dist_sup))
         print('policy dist mean: {0}'.format(p_dist_mean))
 
-        # coefficient computation and print
-        if isinstance(self.model_chooser, SetModelChooser) and len(self.model_chooser.model_set) == 2:
-            P = self.mdp.P_sa
-            P1 = self.model_chooser.model_set[0].get_matrix()
-            P2 = self.model_chooser.model_set[1].get_matrix()
-            k = (P - P2) / (P1 - P2 + 1e-24)
-            k = np.max(k)
-            print('\ncurrent k: {0}'.format(k))
-            self.coefficients.append(k)
+
+        # model vector coefficients computation and print
+        if isinstance(self.model_chooser, SetModelChooser):
+            model_vector = self.mdp.model_vector
+            print('\ncurrent_model: {0}'.format(model_vector))
+            self.w_current.append(model_vector)
+            self.w_target.append(np.nan)
+
+        # # coefficient computation and print
+        # if isinstance(self.model_chooser, SetModelChooser) and len(self.model_chooser.model_set) == 2:
+        #     P = self.mdp.P_sa
+        #     P1 = self.model_chooser.model_set[0].get_matrix()
+        #     P2 = self.model_chooser.model_set[1].get_matrix()
+        #     k = (P - P2) / (P1 - P2 + 1e-24)
+        #     k = np.max(k)
+        #     print('\ncurrent k: {0}'.format(k))
+        #     self.coefficients.append(k)
 
         # iteration update
         self.iteration = self.iteration + 1
@@ -1254,15 +1280,34 @@ class SPMI(object):
         print('model dist sup: {0}'.format(m_dist_sup))
         print('model dist mean: {0}'.format(m_dist_mean))
 
-        # coefficient computation and print
-        if isinstance(self.model_chooser, SetModelChooser) and len(self.model_chooser.model_set) == 2:
-            P = self.mdp.P_sa
-            P1 = self.model_chooser.model_set[0].get_matrix()
-            P2 = self.model_chooser.model_set[1].get_matrix()
-            k = (P - P2) / (P1 - P2 + 1e-24)
-            k = np.max(k)
-            print('\ncurrent k: {0}'.format(k))
-            self.coefficients.append(k)
+
+        # model vector coefficients computation and print
+        if isinstance(self.model_chooser, SetModelChooser):
+            model_vector = self.mdp.model_vector
+            model_set = self.model_chooser.model_set
+            n_models = len(model_set)
+            for i in range(n_models):
+                if self.model_equiv_check(model_set[i], target_model):
+                    target_index = i
+                    break
+            target_vector = np.zeros(n_models)
+            target_vector[target_index] = 1
+            new_model_vector = beta_star * target_vector + (1 - beta_star) * model_vector
+            self.mdp.model_vector = new_model_vector
+            print('\ntarget_model: {0}'.format(target_vector))
+            print('current_model: {0}'.format(new_model_vector))
+            self.w_current.append(new_model_vector)
+            self.w_target.append(target_vector)
+
+        # # coefficient computation and print
+        # if isinstance(self.model_chooser, SetModelChooser) and len(self.model_chooser.model_set) == 2:
+        #     P = self.mdp.P_sa
+        #     P1 = self.model_chooser.model_set[0].get_matrix()
+        #     P2 = self.model_chooser.model_set[1].get_matrix()
+        #     k = (P - P2) / (P1 - P2 + 1e-24)
+        #     k = np.max(k)
+        #     print('\ncurrent k: {0}'.format(k))
+        #     self.w_current.append(k)
 
         # iteration update
         self.iteration = self.iteration + 1
@@ -1314,16 +1359,27 @@ class SPMI(object):
         print('model dist sup[]: {0}'.format(m_dist_sup_set))
         print('model dist mean[]: {0}'.format(m_dist_mean_set))
 
-        # coefficient computation and print
-        if isinstance(self.model_chooser, SetModelChooser) and len(self.model_chooser.model_set) == 2:
-            P = self.mdp.P_sa
-            P1 = self.model_chooser.model_set[0].get_matrix()
-            P2 = self.model_chooser.model_set[1].get_matrix()
-            k = (P - P2) / (P1 - P2 + 1e-24)
-            k = np.max(k)
-            print('\ncurrent k: {0}'.format(k))
-            print('target k: {0}'.format(w_target[0]))
-            self.coefficients.append(k)
+
+        # model vector coefficients computation and print
+        if isinstance(self.model_chooser, SetModelChooser):
+            model_vector = self.mdp.model_vector
+            target_vector = w_target
+            new_model_vector = beta_star * target_vector + (1 - beta_star) * model_vector
+            print('\ntarget_model: {0}'.format(target_vector))
+            print('current_model: {0}'.format(new_model_vector))
+            self.w_current.append(new_model_vector)
+            self.mdp.model_vector = new_model_vector
+
+        # # coefficient computation and print
+        # if isinstance(self.model_chooser, SetModelChooser) and len(self.model_chooser.model_set) == 2:
+        #     P = self.mdp.P_sa
+        #     P1 = self.model_chooser.model_set[0].get_matrix()
+        #     P2 = self.model_chooser.model_set[1].get_matrix()
+        #     k = (P - P2) / (P1 - P2 + 1e-24)
+        #     k = np.max(k)
+        #     print('\ncurrent k: {0}'.format(k))
+        #     print('target k: {0}'.format(w_target[0]))
+        #     self.w_current.append(k)
 
         # iteration update
         self.iteration = self.iteration + 1
@@ -1344,7 +1400,7 @@ class SPMI(object):
         self.m_dist_mean = list()
         self.alfas = list()
         self.betas = list()
-        self.coefficients = list()
+        self.w_current = list()
         self.p_change = list()
         self.m_change = list()
         self.x = list()
@@ -1368,14 +1424,15 @@ class SPMI(object):
 
         if isinstance(self.model_chooser, SetModelChooser):
 
-            header_string = header_string + ';coefficient'
+            header_string = header_string + ';w_current;w_target'
 
             execution_data = [self.iterations, self.evaluations,
                               self.p_advantages, self.m_advantages,
                               self.p_dist_sup, self.p_dist_mean,
                               self.m_dist_sup, self.m_dist_mean,
                               self.alfas, self.betas, self.p_change,
-                              self.m_change, self.bound, self.coefficients]
+                              self.m_change, self.bound,
+                              self.w_current, self.w_target]
 
         execution_data = np.array(execution_data).T
 

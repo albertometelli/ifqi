@@ -43,7 +43,7 @@ alfas = np.array(spmi.alfas)
 betas = np.array(spmi.betas)
 p_change = np.cumsum(1 - np.array(spmi.p_change))
 m_change = np.cumsum(1 - np.array(spmi.m_change))
-coefficients = np.array(spmi.coefficients)
+coefficients = np.array(spmi.w_current)
 
 
 plt.switch_backend('pdf')

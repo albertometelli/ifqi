@@ -254,9 +254,11 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.P2_sas = self.p_sas(self.P2)
         self.P2_sa = self.p_sa(self.P2_sas)
         # linear combination of P1, P2 with parameter k
-        if initial_configuration is None:
-            initial_configuration = 0.5
-        self.k = initial_configuration
+        self.initial_configuration = initial_configuration
+        if self.initial_configuration is None:
+            self.initial_configuration = 0.5
+        self.k = self.initial_configuration
+        self.model_vector = np.array([self.k, 1 - self.k])
         self.P = P = self.model_configuration(self.k)
 
         # R ----------
@@ -269,6 +271,15 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
 
         # call the init method of the super class (Discrete)
         super(RaceTrackConfigurableEnv, self).__init__(nS, nA, P, isd)
+
+    def set_initial_configuration(self, model):
+        self.P = model
+        self.P_sas = self.p_sas(self.P)
+        self.P_sa = self.p_sa(self.P_sas)
+        self.k = self.initial_configuration
+        self.model_vector = np.array([self.k, 1 - self.k])
+        self.P = self.model_configuration(self.k)
+
 
     def set_model(self, model):
         self.P = model

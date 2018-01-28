@@ -45,7 +45,7 @@ opt_x = np.array(spmi.x)
 opt_betas = np.array(spmi.betas)
 opt_p_change = np.cumsum(1 - np.array(spmi.p_change))
 opt_m_change = np.cumsum(1 - np.array(spmi.m_change))
-opt_coefficient = np.array(spmi.coefficients)
+opt_coefficient = np.array(spmi.w_current)
 opt_w_target = np.array(spmi.w_target)
 opt_bound = np.array(spmi.bound)
 
@@ -93,7 +93,7 @@ alfas = np.array(spmi.alfas)
 betas = np.array(spmi.betas)
 p_change = np.cumsum(1 - np.array(spmi.p_change))
 m_change = np.cumsum(1 - np.array(spmi.m_change))
-coefficient = np.array(spmi.coefficients)
+coefficient = np.array(spmi.w_current)
 bound = np.array(spmi.bound)
 
 

@@ -51,7 +51,7 @@ alfas = np.array(spmi.alfas)
 betas = np.array(spmi.betas)
 p_change = np.cumsum(1 - np.array(spmi.p_change))
 m_change = np.cumsum(1 - np.array(spmi.m_change))
-coefficient = np.array(spmi.coefficients)
+coefficient = np.array(spmi.w_current)
 spmi.save_simulation(dir_path, 'spmi.csv')
 
 #-------------------------------------------------------------------------------
@@ -71,7 +71,7 @@ sup_alfas = np.array(spmi.alfas)
 sup_betas = np.array(spmi.betas)
 sup_p_change = np.cumsum(1 - np.array(spmi.p_change))
 sup_m_change = np.cumsum(1 - np.array(spmi.m_change))
-sup_coefficient = np.array(spmi.coefficients)
+sup_coefficient = np.array(spmi.w_current)
 spmi.save_simulation(dir_path, 'sup.csv')
 
 #-------------------------------------------------------------------------------
@@ -91,7 +91,7 @@ int_alfas = np.array(spmi.alfas)
 int_betas = np.array(spmi.betas)
 int_p_change = np.cumsum(1 - np.array(spmi.p_change))
 int_m_change = np.cumsum(1 - np.array(spmi.m_change))
-int_coefficient = np.array(spmi.coefficients)
+int_coefficient = np.array(spmi.w_current)
 spmi.save_simulation(dir_path,  'nofull.csv')
 
 #-------------------------------------------------------------------------------
@@ -111,7 +111,7 @@ alt_alfas = np.array(spmi.alfas)
 alt_betas = np.array(spmi.betas)
 alt_p_change = np.cumsum(1 - np.array(spmi.p_change))
 alt_m_change = np.cumsum(1 - np.array(spmi.m_change))
-alt_coefficient = np.array(spmi.coefficients)
+alt_coefficient = np.array(spmi.w_current)
 spmi.save_simulation(dir_path, 'alt.csv')
 
 #-------------------------------------------------------------------------------
@@ -131,7 +131,7 @@ seq_alfas = spmi.alfas
 seq_betas = spmi.betas
 seq_p_change = np.cumsum(1 - np.array(spmi.p_change))
 seq_m_change = np.cumsum(1 - np.array(spmi.m_change))
-seq_coefficient = np.array(spmi.coefficients)
+seq_coefficient = np.array(spmi.w_current)
 spmi.save_simulation(dir_path, 'seq.csv')
 
 #-------------------------------------------------------------------------------
