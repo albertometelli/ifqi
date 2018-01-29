@@ -128,7 +128,7 @@ class SPMI(object):
                 P[0][i + 1] = p_dist_mean * m_dist_sup_set[i]
                 P[i + 1][0] = p_dist_sup * m_dist_mean_set[i]
                 for j in range(n_models):
-                    P[i + 1][j + 1] = gamma * m_dist_mean_set[i] * m_dist_mean_set[j]
+                    P[i + 1][j + 1] = gamma * m_dist_mean_set[i] * m_dist_sup_set[j]
             P = (gamma / (1 - gamma) * self.delta_q) * P
             # filling the box constraint matrix
             G[0:n_var][0:n_var] = np.identity(n_var)
@@ -258,7 +258,7 @@ class SPMI(object):
                     P[0][i + 1] = p_dist_mean * m_dist_sup_set[i]
                     P[i + 1][0] = p_dist_sup * m_dist_mean_set[i]
                     for j in range(n_models):
-                        P[i + 1][j + 1] = gamma * m_dist_mean_set[i] * m_dist_mean_set[j]
+                        P[i + 1][j + 1] = gamma * m_dist_mean_set[i] * m_dist_sup_set[j]
                 P = (gamma / (1 - gamma) * self.delta_q) * P
                 # filling the box constraint matrix
                 G[0:n_var][0:n_var] = np.identity(n_var)

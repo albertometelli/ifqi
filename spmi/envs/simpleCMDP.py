@@ -18,8 +18,6 @@ class SimpleCMDP(discrete.DiscreteEnv):
         self.isd[0] = 1
         self.mu = self.isd
 
-        self.R = [0, 0, 1, 0]
-
         self.P0 = {s: {a: [] for a in range(self.nA)} for s in range(self.nS)}
         self.P0[0][0].append((p, 1, 0, False))
         self.P0[0][0].append((1 - p, 3, 0, False))
@@ -50,7 +48,7 @@ class SimpleCMDP(discrete.DiscreteEnv):
         self.R = r_sa(self.R_sas, self.nS, self.nA)
 
         self.initial_configuration = w
-        self.model_vector = np.array([w, 1 - w])
+        self.model_vector = np.array([1 - w, w])
 
         super(SimpleCMDP, self).__init__(self.nS, self.nA, self.P, self.isd)
 
@@ -67,7 +65,7 @@ class SimpleCMDP(discrete.DiscreteEnv):
         self.P_sa = p_sa(self.P_sas, self.nS, self.nA)
         self.R_sas = r_sas(self.P, self.nS, self.nA)
         self.R = r_sa(self.R_sas, self.nS, self.nA)
-        self.model_vector = np.array([self.initial_configuration, 1 - self.initial_configuration])
+        self.model_vector = np.array([1 - self.initial_configuration, self.initial_configuration])
 
     def get_valid_actions(self, s):
         return [0]

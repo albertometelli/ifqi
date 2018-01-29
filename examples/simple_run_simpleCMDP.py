@@ -78,7 +78,7 @@ opt_bound = np.array(spmi.bound)
 #-------------------------------------------------------------------------------
 #SPMI
 
-mdp.set_model(original_model)
+mdp.set_initial_configuration(original_model)
 spmi.spmi(initial_policy, initial_model)
 
 iterations = np.array(range(spmi.iteration))
@@ -169,8 +169,8 @@ plt.savefig(dir_path + "/beta x_1 comparison")
 plt.figure()
 plt.title('Model coefficient')
 plt.xlabel('Iteration')
-plt.plot(iterations, coefficient, color='tab:blue', linestyle='dashed', label='spmi')
-plt.plot(opt_iterations, opt_coefficient, color='tab:red', linestyle='dotted', label='spmi_opt')
+plt.plot(iterations, coefficient[:, 0], color='tab:blue', linestyle='dashed', label='spmi')
+plt.plot(opt_iterations, opt_coefficient[:, 0], color='tab:red', linestyle='dotted', label='spmi_opt')
 plt.legend(loc='best', fancybox=True)
 plt.savefig(dir_path + "/model comparison")
 
@@ -178,7 +178,7 @@ plt.figure()
 plt.title('Model coefficient and Target coefficient')
 plt.xlabel('Iteration')
 plt.plot(opt_iterations, opt_w_target[:, 0], color='tab:red', linestyle='dashed', label='target model')
-plt.plot(opt_iterations, opt_coefficient, color='tab:orange', linestyle='dotted', label='current model')
+plt.plot(opt_iterations, opt_coefficient[:, 0], color='tab:orange', linestyle='dotted', label='current model')
 plt.legend(loc='best', fancybox=True)
 plt.yscale('log')
 plt.savefig(dir_path + "/target current comparison")
