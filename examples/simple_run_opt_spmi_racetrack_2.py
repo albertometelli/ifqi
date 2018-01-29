@@ -1,4 +1,4 @@
-from spmi.envs.race_track_configurable import RaceTrackConfigurableEnv
+from spmi.envs.race_track_configurable_2 import RaceTrackConfigurableEnv
 from spmi.algorithms.spmi_exact_non_par import SPMI
 from spmi.utils.uniform_policy import UniformPolicy
 from spmi.algorithms.policy_chooser import *
@@ -30,7 +30,7 @@ spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=600, use_target_tr
 #-------------------------------------------------------------------------------
 #SPMI_opt
 
-spmi.optimal_spmi_tt(initial_policy, initial_model)
+spmi.spmi_opt(initial_policy, initial_model)
 
 opt_iterations = np.array(range(spmi.iteration))
 opt_evaluations = np.array(spmi.evaluations)

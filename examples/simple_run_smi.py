@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from spmi.utils.uniform_policy import UniformPolicy
 from spmi.utils.random_policy import RandomPolicy
-from spmi.envs.race_track_configurable import RaceTrackConfigurableEnv
+from spmi.envs.race_track_configurable_2 import RaceTrackConfigurableEnv
 from spmi.algorithms.smi_exact_par import pSMI
 
 

@@ -3,7 +3,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 
-from spmi.envs.race_track_configurable import RaceTrackConfigurableEnv
+from spmi.envs.race_track_configurable_2 import RaceTrackConfigurableEnv
 from spmi.algorithms.optimal_model_finder_2 import OptimalModelFinder
 
 

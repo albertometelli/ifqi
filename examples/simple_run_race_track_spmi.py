@@ -1,4 +1,4 @@
-from spmi.envs.race_track_configurable import RaceTrackConfigurableEnv
+from spmi.envs.race_track_configurable_2 import RaceTrackConfigurableEnv
 from spmi.algorithms.spmi_exact_non_par import SPMI
 from spmi.utils.uniform_policy import UniformPolicy
 from spmi.algorithms.policy_chooser import *

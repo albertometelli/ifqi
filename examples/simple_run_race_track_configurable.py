@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from spmi.envs.race_track_configurable import RaceTrackConfigurableEnv
+from spmi.envs.race_track_configurable_2 import RaceTrackConfigurableEnv
 from spmi.evaluation import evaluation
 
 class RandomPolicy(object):
