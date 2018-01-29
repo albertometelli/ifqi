@@ -2,7 +2,7 @@
 import time
 import numpy as np
 
-from spmi.envs.race_track_configurable_plus2 import RaceTrackConfigurableEnv
+from spmi.envs.race_track_configurable_4 import RaceTrackConfigurableEnv
 from spmi.algorithms.optimal_model_finder_4 import OptimalModelFinder4
 from spmi.utils.tabular import *
 
@@ -11,10 +11,10 @@ from spmi.utils.tabular import *
 startTime = time.time()
 
 
-grid_num = 5
+grid_num = 11
 threshold = 0.00001
 
-mdp = RaceTrackConfigurableEnv(track_file='track0easy', reward_fail_abs=0, pfail = 0.5)
+mdp = RaceTrackConfigurableEnv(track_file='race_straight', reward_fail_abs=0, pfail=0.07)
 # mdp = RaceTrackConfigurableEnv(track_file='track0_start')
 
 print('nS: {0}'.format(mdp.nS))

@@ -401,9 +401,9 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         # default coefficient k_balance: 0.5
         self.initial_configuration = initial_configuration
         if self.initial_configuration is None:
-            self.initial_configuration = 0.5
-        self.k = self.initial_configuration
-        self.model_vector = np.array([self.k, 1 - self.k])
+            self.initial_configuration = [0.5, 0.5, 0, 0]
+        self.k = self.initial_configuration[0]
+        self.model_vector = np.array(initial_configuration)
         self.P = P = self.model_configuration(self.k)
 
         # R ----------
@@ -476,8 +476,8 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.P = model
         self.P_sas = self.p_sas(self.P)
         self.P_sa = self.p_sa(self.P_sas)
-        self.k = self.initial_configuration
-        self.model_vector = np.array([self.k, 1 - self.k])
+        self.k = self.initial_configuration[0]
+        self.model_vector = np.array(self.initial_configuration)
         self.P = self.model_configuration(self.k)
 
     def set_model(self, model):

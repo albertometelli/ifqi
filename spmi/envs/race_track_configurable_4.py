@@ -5,7 +5,7 @@ from spmi.envs import discrete
 
 
 class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
-    def __init__(self, track_file, failed_as_keep=False, initial_configuration=None, reward_weight=None):
+    def __init__(self, track_file, failed_as_keep=False, initial_configuration=None, reward_weight=None, reward_fail_abs=0, pfail=0.):
 
         """
         The Race Track Configurable environment:
@@ -36,7 +36,8 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.nvel = nvel = len(vel)
         self.min_vel_nb, self.max_vel_nb = min(vel) + 1, max(vel) - 1
         self.min_vel, self.max_vel = min(vel), max(vel)
-        self.nS = nS = nlin * nvel * nvel  # state=(x,y,vx,vy)
+        self.nS = nS = nlin * nvel * nvel + 1# state=(x,y,vx,vy)
+        self.reward_fail_abs = reward_fail_abs
 
         # isd ---
         mu = np.zeros(nS)
@@ -56,11 +57,12 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
         self.P_sa = np.zeros(shape=(nS * nA, nS))
 
         self.max_psuc = max_psuc = 0.9
-        self.min_psuc = min_psuc = 0.797
+        self.min_psuc = min_psuc = 0.7
         self.max_psuc2 = max_psuc2 = 0.9
         self.min_psuc2 = min_psuc2 = 0.1
-        self.max_pboost = max_pboost = 0.5
-        self.min_pboost = min_pboost = 0.
+        self.max_pboost = max_pboost = 0.9
+        self.min_pboost = min_pboost = 0.1
+        self.pfail = pfail
         self.max_speed = max_speed = 2 * (max(vel) ** 2)
 
         # P_highspeed_noboost, P_lowspeed_noboost, P_highspeed_boost, P_lowspeed_boost
@@ -72,6 +74,8 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
 
         # reward computation
         def rstate(x, y, vx, vy, weight):
+            if x == -1:
+                return self.reward_fail_abs
             if weight is None:
                 weight = [1, 0, 0, 0, 0]
             type = track[x, y]
@@ -194,13 +198,12 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                             li_hs_b = self.P_highspeed_boost[s][a_index]
                             li_ls_b = self.P_lowspeed_boost[s][a_index]
                             type = track[x, y]
-                            if type == '2' or type == '0':  # if s is goal state
+                            if type == '2':  # if s is goal state
                                 li_hs_nb.append((1.0, s, 0, True))
                                 li_ls_nb.append((1.0, s, 0, True))
                                 li_hs_b.append((1.0, s, 0, True))
                                 li_ls_b.append((1.0, s, 0, True))
                             else:
-
                                 if a_value in actions_nb:
 
                                     # SUCCEED ACTION TRANSITION
@@ -213,20 +216,20 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                                     psuc_ls = max_psuc2 - ((max_psuc2 - min_psuc2) / max_speed) * speed
                                     append_if_new(li_hs_nb, (psuc_hs, ns, reward, done))
                                     append_if_new(li_ls_nb, (psuc_ls, ns, reward, done))
-                                    append_if_new(li_hs_b, (psuc_hs, ns, reward, done))
-                                    append_if_new(li_ls_b, (psuc_ls, ns, reward, done))
+
+
+                                    #Fail also with no boost
+                                    append_if_new(li_hs_b, (psuc_hs*(1-pfail), ns, reward, done))
+                                    append_if_new(li_ls_b, (psuc_ls*(1-pfail), ns, reward, done))
+
+                                    append_if_new(li_hs_b, (psuc_hs * pfail, nS-1, 0., True))
+                                    append_if_new(li_ls_b, (psuc_ls * pfail, nS-1, 0., True))
 
                                     # FAILED ACTION TRANSITIONS
                                     pins_hs = 1 - psuc_hs
                                     pins_ls = 1 - psuc_ls
-                                    a_fail = np.copy(actions)
-                                    a_fail[a_index] = 0
-                                    for i in range(len(a_fail)):
-                                        if a_fail[i] not in actions_nb:
-                                            a_fail[i] = 0
-                                    a_fail = np.unique(a_fail)
-                                    if a_value == 0:
-                                        a_fail = np.delete(a_fail, 0)
+                                    a_fail = np.array(list(set(actions_nb) - set([a_value, 0])))
+
                                     for a in a_fail:
                                         (nx, ny, nvx, nvy) = next_s(x, y, vx, vy, a, 1)
                                         ns = self._s_to_i(nx, ny, nvx, nvy)
@@ -239,7 +242,6 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                                         append_if_new(li_ls_nb, (prob_ls, ns, reward, done))
                                         append_if_new(li_hs_b, (prob_hs, ns, reward, done))
                                         append_if_new(li_ls_b, (prob_ls, ns, reward, done))
-
                                 else:
 
                                     # SUCCEED ACTION TRANSITIONS
@@ -261,68 +263,76 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                                     reward_b = rstate(nxb, nyb, nvxb, nvyb, reward_weight)
 
                                     # failure state
-                                    (xf, yf) = np.where(track == '0')
-                                    xf = np.asscalar(xf)
-                                    yf = np.asscalar(yf)
-                                    ns_f = self._s_to_i(xf, yf, 0, 0)
+                                    ns_f = self.nS - 1
                                     done_f = True
-                                    reward_f = 0
+                                    reward_f = self.reward_fail_abs
+
+                                    pins_hs_b = pins_ls_b = pins_hs_nb = pins_ls_nb = 1.
 
                                     # high speed boost
-                                    prob_b = psuc_hs * max_pboost
-                                    prob_f = psuc_hs * max_pboost
-                                    prob_nb = psuc_hs * (1 - 2 * max_pboost)
+                                    prob_b = psuc_hs * max_pboost * (1. - pfail)
+                                    prob_f = psuc_hs * max_pboost * pfail
+                                    prob_nb = psuc_hs * (1 - max_pboost)
+                                    pins_hs_b = pins_hs_b - prob_b - prob_f - prob_nb
                                     append_if_new(li_hs_b, (prob_b, ns_b, reward_b, done_b))
                                     append_if_new(li_hs_b, (prob_f, ns_f, reward_f, done_f))
                                     append_if_new(li_hs_b, (prob_nb, ns_nb, reward_nb, done_nb))
 
                                     # low speed boost
-                                    prob_b = psuc_ls * max_pboost
-                                    prob_f = psuc_ls * max_pboost
-                                    prob_nb = psuc_ls * (1 - 2 * max_pboost)
+                                    prob_b = psuc_ls * max_pboost * (1. - pfail)
+                                    prob_f = psuc_ls * max_pboost * pfail
+                                    prob_nb = psuc_ls * (1 - max_pboost)
+                                    pins_ls_b = pins_ls_b - prob_b - prob_f - prob_nb
                                     append_if_new(li_ls_b, (prob_b, ns_b, reward_b, done_b))
                                     append_if_new(li_ls_b, (prob_f, ns_f, reward_f, done_f))
                                     append_if_new(li_ls_b, (prob_nb, ns_nb, reward_nb, done_nb))
 
                                     # high speed no boost
-                                    prob_b = psuc_hs * min_pboost
-                                    prob_f = psuc_hs * min_pboost
-                                    prob_nb = psuc_hs * (1 - 2 * min_pboost)
+                                    prob_b = psuc_hs * min_pboost * (1. - pfail)
+                                    prob_f = psuc_hs * min_pboost * pfail
+                                    prob_nb = psuc_hs * (1 - min_pboost)
+                                    pins_hs_nb = pins_hs_nb - prob_b - prob_f - prob_nb
                                     append_if_new(li_hs_nb, (prob_b, ns_b, reward_b, done_b))
                                     append_if_new(li_hs_nb, (prob_f, ns_f, reward_f, done_f))
                                     append_if_new(li_hs_nb, (prob_nb, ns_nb, reward_nb, done_nb))
 
                                     # low speed no boost
-                                    prob_b = psuc_ls * min_pboost
-                                    prob_f = psuc_ls * min_pboost
-                                    prob_nb = psuc_ls * (1 - 2 * min_pboost)
+                                    prob_b = psuc_ls * min_pboost * (1. - pfail)
+                                    prob_f = psuc_ls * min_pboost * pfail
+                                    prob_nb = psuc_ls * (1 - min_pboost)
+                                    pins_ls_nb = pins_ls_nb - prob_b - prob_f - prob_nb
                                     append_if_new(li_ls_nb, (prob_b, ns_b, reward_b, done_b))
                                     append_if_new(li_ls_nb, (prob_f, ns_f, reward_f, done_f))
                                     append_if_new(li_ls_nb, (prob_nb, ns_nb, reward_nb, done_nb))
 
 
                                     # FAILED ACTION TRANSITIONS
-                                    pins_hs = 1 - psuc_hs
-                                    pins_ls = 1 - psuc_ls
-                                    a_fail = np.copy(actions)
-                                    for i in range(len(a_fail)):
-                                        if a_fail[i] not in actions_nb:
-                                            a_fail[i] = 0
-                                    a_fail = np.unique(a_fail)
-                                    a_fail = np.delete(a_fail, 0)
+                                    a_fail = np.array(list(set(actions_nb) - set([a_value, 0])))
                                     for a in a_fail:
                                         (nx, ny, nvx, nvy) = next_s(x, y, vx, vy, a, 1)
                                         ns = self._s_to_i(nx, ny, nvx, nvy)
                                         ntype = track[nx, ny]
                                         reward = rstate(nx, ny, nvx, nvy, reward_weight)
                                         done = (ntype == '2')
-                                        prob_hs = pins_hs / len(a_fail)
-                                        prob_ls = pins_ls / len(a_fail)
-                                        append_if_new(li_hs_nb, (prob_hs, ns, reward, done))
-                                        append_if_new(li_ls_nb, (prob_ls, ns, reward, done))
-                                        append_if_new(li_hs_b, (prob_hs, ns, reward, done))
-                                        append_if_new(li_ls_b, (prob_ls, ns, reward, done))
+                                        prob_hs_b = pins_hs_b / len(a_fail)
+                                        prob_ls_b = pins_ls_b / len(a_fail)
+                                        prob_hs_nb = pins_hs_nb / len(a_fail)
+                                        prob_ls_nb = pins_ls_nb / len(a_fail)
+                                        append_if_new(li_hs_nb, (prob_hs_nb, ns, reward, done))
+                                        append_if_new(li_ls_nb, (prob_ls_nb, ns, reward, done))
+                                        append_if_new(li_hs_b, (prob_hs_b, ns, reward, done))
+                                        append_if_new(li_ls_b, (prob_ls_b, ns, reward, done))
 
+
+            for a_index, a_value in enumerate(actions):
+                li_hs_nb = self.P_highspeed_noboost[self.nS - 1][a_index]
+                li_ls_nb = self.P_lowspeed_noboost[self.nS - 1][a_index]
+                li_hs_b = self.P_highspeed_boost[self.nS - 1][a_index]
+                li_ls_b = self.P_lowspeed_boost[self.nS - 1][a_index]
+                li_hs_nb.append((1., self.nS - 1, self.reward_fail_abs, True))
+                li_ls_nb.append((1., self.nS - 1, self.reward_fail_abs, True))
+                li_hs_b.append((1., self.nS - 1, self.reward_fail_abs, True))
+                li_ls_b.append((1., self.nS - 1, self.reward_fail_abs, True))
         # populate the transition probability matrix
         # failed actions as keep actions
         def fill_p_failed_as_keep():
@@ -444,6 +454,8 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
 
     # form index to state
     def _i_to_s(self, index):
+        if index == self.nS - 1:
+            return (-1, -1, -1, -1)
         # vy computation
         vy_off = index % self.nvel
         vy = vy_off + self.min_vel
