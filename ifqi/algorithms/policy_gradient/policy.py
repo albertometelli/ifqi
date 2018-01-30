@@ -312,7 +312,6 @@ class GaussianPolicyLinearMeanCholeskyVar(ParametricPolicy):
         return np.array([np.asscalar(gK), np.asscalar(gL)])
 
     def M_2(self, other):
-        print('other covar %s \t this covar %s' % (other.covar, self.covar))
         M_2 = np.asscalar(other.covar / (np.sqrt(self.covar * (2*other.covar - self.covar))) *\
                np.exp(la.norm(self.K - other.K) ** 2 * self.max_state ** 2 / (2*other.covar - self.covar)))
         return M_2

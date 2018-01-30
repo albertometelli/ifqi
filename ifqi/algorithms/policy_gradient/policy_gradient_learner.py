@@ -42,7 +42,7 @@ class PolicyGradientLearner(object):
                  max_iter_eval=100,
                  tol_eval=-1.,
                  max_iter_opt=100,
-                 tol_opt=-1.,
+                 tol_opt=1e-3,
                  verbose=0,
                  state_index=0,
                  action_index=1,
@@ -238,6 +238,10 @@ class PolicyGradientLearner(object):
             self.gradient_updater = AnnellingGradient(self.learning_rate, ascent=True)
         elif gradient_updater == 'chebychev-adaptive':
             self.gradient_updater = ChebychevAdaptiveGradient(self.learning_rate, self.max_iter_eval, self.delta, self.gamma, self.horizon, ascent=True)
+        elif gradient_updater == 'rmsprop':
+            self.gradient_updater = RMSProp(self.learning_rate, ascent=True)
+        elif gradient_updater == 'adanat':
+            self.gradient_updater = FisherUpdater(self.learning_rate, ascent=True)
         else:
             raise ValueError('Gradient updater not found.')
 
@@ -273,23 +277,12 @@ class PolicyGradientLearner(object):
             print('Bound: %s' % self.bound.__class__)
             print('Trajectory generator: %s' % self.trajectory_generator.__class__)
 
-        if self.natural:
-            #Natural gradient
-            #gradient, inv_fisher, avg_return_norm, penalization, H_star, \
-            #    stepwise_avg_return, avg_return, avg_discounted_return = \
-            #        self.estimator.estimate_natural(baseline_type=self.baseline_type)
-            gradient, fisher, avg_return_norm, penalization, H_star, \
-                stepwise_avg_return, avg_return, avg_discounted_return = \
-                    self.estimator.estimate_natural(baseline_type=self.baseline_type)
-            #gradient = np.dot(inv_fisher,gradient)
-            #gradient = la.solve(fisher+eps, gradient)
-        else:
-            #Vanilla gradient
-            gradient, avg_return_norm, bound_value, H_star, stepwise_avg_return, avg_return, avg_discounted_return, variance, stepwise_variance = self._estimator_function(baseline_type=self.baseline_type)
+        gradient, avg_return_norm, bound_value, H_star, stepwise_avg_return, avg_return, avg_discounted_return, variance, stepwise_variance, fisher = self._estimator_function(baseline_type=self.baseline_type)
         old_stepwise_avg_return = stepwise_avg_return
         gradient_norm = la.norm(gradient)
         initial_bound_value = bound_value
         penalization = bound_value - avg_return_norm
+        natural_gradient = la.solve(fisher + eps * np.eye(len(gradient)), gradient)
 
         if return_history > 0:
             self.csv_header = 'Iteration,AvgReturnNormalized,AvgReturn,AvgDiscountedReturn,Penalization,M_2,M_inf,BoundValue,GradientNorm,StepSize,Horizon'
@@ -323,17 +316,19 @@ class PolicyGradientLearner(object):
                             ('StepSize', self.gradient_updater.learning_rate),
                             ('Horizon', self.bound.H_star),
                             ('Parameter', theta),
-                            ('Gradient', gradient)]))
+                            ('Gradient', gradient),
+                            ('NaturalGradient', natural_gradient)]))
             if self.natural:
-                print('Real LR: %s' % self.gradient_updater.get_learning_rate(gradient, fisher))
+                pass
+                #print('Real LR: %s' % self.gradient_updater.get_learning_rate(gradient, fisher))
 
         while ite < self.max_iter_opt and gradient_norm > self.tol_opt:
 
             theta_old = np.copy(theta) #Backup for safe stopping
             if self.natural:
-                theta = self.gradient_updater.update(gradient, fisher) #Gradient ascent update
+                theta = self.gradient_updater.update(natural_gradient) #Gradient ascent update
             else:
-                theta = self.gradient_updater.update(gradient)
+                theta = self.gradient_updater.update(gradient, fisher)
 
             self.target_policy.set_parameter(theta)
             self.estimator.set_target_policy(self.target_policy)
@@ -344,21 +339,10 @@ class PolicyGradientLearner(object):
             old_penalization = penalization
             old_H_star = H_star
 
-            if self.natural:
-                # Natural gradient
-                # gradient, inv_fisher, avg_return_norm, penalization, H_star, \
-                #    stepwise_avg_return, avg_return, avg_discounted_return = \
-                #        self.estimator.estimate_natural(baseline_type=self.baseline_type)
-                gradient, fisher, avg_return_norm, penalization, H_star, \
-                stepwise_avg_return, avg_return, avg_discounted_return = \
-                    self.estimator.estimate_natural(baseline_type=self.baseline_type)
-                # gradient = np.dot(inv_fisher,gradient)
-                #gradient = la.solve(fisher + eps, gradient)
-            else:
-                #Vanilla
-                gradient, avg_return_norm, bound_value, H_star, stepwise_avg_return, avg_return, avg_discounted_return, variance, stepwise_variance = self._estimator_function(baseline_type=self.baseline_type)
+            gradient, avg_return_norm, bound_value, H_star, stepwise_avg_return, avg_return, avg_discounted_return, variance, stepwise_variance, fisher = self._estimator_function(baseline_type=self.baseline_type)
             gradient_norm = la.norm(gradient)
             penalization = bound_value - avg_return_norm
+            natural_gradient = la.solve(fisher + eps * np.eye(len(gradient)), gradient)
 
             ite += 1
             if return_history > 0:
@@ -391,13 +375,20 @@ class PolicyGradientLearner(object):
                                 ('StepSize', self.gradient_updater.learning_rate),
                                 ('Horizon', self.bound.H_star),
                                 ('Parameter', theta),
-                                ('Gradient', gradient)]))
+                                ('Gradient', gradient),
+                                ('NaturalGradient', natural_gradient)]))
                 if self.natural:
-                    print('Real LR: %s' % self.gradient_updater.get_learning_rate(gradient, fisher))
+                    pass
+                    #print('Real LR: %s' % self.gradient_updater.get_learning_rate(gradient, fisher))
 
-            if self.adaptive_stop and bound_value < initial_bound_value:
+            if self.adaptive_stop and \
+                    (not self.optimize_bound and bound_value < initial_bound_value) or \
+                    (self.optimize_bound and gradient_norm < self.tol_opt):
 
-                print('ADAPTIVE STOP - bound_value < initial_bound_value')
+                if not self.optimize_bound:
+                    print('ADAPTIVE STOP - bound_value < initial_bound_value')
+                else:
+                    print('ADAPTIVE STOP - gradient norm < tol')
 
                 if self.hill_climb:
 
@@ -539,6 +530,7 @@ class GradientEstimator(object):
         ws = np.ones((self.max_iter, int(self.horizon)))                                    #vector of the importance weights
         ks = np.zeros(self.max_iter, dtype=int)
         traj_horizons = np.zeros(self.max_iter, dtype=int)                                  #vectors of the lengths of trajectories
+        fisher_samples = np.zeros((self.max_iter, self.dim, self.dim))                      #Fisher matrix estimator
         avg_return = 0.
         avg_discounted_return = 0.
 
@@ -601,6 +593,11 @@ class GradientEstimator(object):
             traj_log_gradients[ite, :traj_horizon] = traj_log_gradient
             traj_log_gradients[ite, traj_horizon:] = traj_log_gradient[-1]
 
+            # Compute Fisher sample
+            fisher_weight = w[-1]
+            traj_log_gradient_sum = traj_log_gradient.sum(axis=0)
+            fisher_samples[ite, :, :] = fisher_weight * np.outer(traj_log_gradient_sum, traj_log_gradient_sum)
+
             ite += 1
 
         sum_prod = np.sum(traj_returns * ws, axis=1)
@@ -625,11 +622,10 @@ class GradientEstimator(object):
             gradient2_sum_prod = np.mean(traj_log_gradients[:, -1, :] * ws[:, -1][:, np.newaxis] ** 2 * (np.sum(traj_returns, axis=1)[:, np.newaxis] ** 2 - gradient2_baseline[np.newaxis, :] / ws[:, -1][:, np.newaxis]), axis=0)
             variance_gradient = 2. * (gradient2_sum_prod - return_ * gradient)
 
-
-
-
         avg_return /= self.max_iter
         avg_discounted_return /= self.max_iter
+
+        fisher = np.mean(fisher_samples, axis=0)
 
         print('Empirical variance: %s', return_variance)
         print('Max %s', np.max(sum_prod))
@@ -649,7 +645,7 @@ class GradientEstimator(object):
 
         gradient_estimate = bound_gradient
 
-        return gradient_estimate, return_, bound_value, H_star, stepwise_return, avg_return, avg_discounted_return, return_variance, stepwise_return_variance
+        return gradient_estimate, return_, bound_value, H_star, stepwise_return, avg_return, avg_discounted_return, return_variance, stepwise_return_variance, fisher
 
 
     def estimate_parallel(self, baseline_type='vectorial'):

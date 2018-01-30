@@ -202,3 +202,21 @@ class RMSProp(GradientDescent):
     def get_learning_rate(self, dx):
         self.g2 = self.gamma * self.g2 + (1 - self.gamma) * dx ** 2
         return self.learning_rate / np.sqrt(self.g2 + self.eps)
+
+
+class FisherUpdater(GradientDescent):
+
+    def __init__(self, eps, ascent=False):
+        self.eps = eps
+        self.ascent = ascent
+
+    def update(self, dx, riemann_tensor=None):
+        gradient = la.solve(riemann_tensor, dx)
+        lr = 1./np.asscalar(np.dot(gradient, dx))
+
+        if self.ascent:
+            self.x += lr * gradient
+        else:
+            self.x -= lr * gradient
+
+        return self.x

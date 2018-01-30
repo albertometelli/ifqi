@@ -150,7 +150,7 @@ class OnOffLearner:
                                                     natural=self.natural,
                                                     normalize_return=self.normalize_return)
 
-            gradient, _, _, _, _, _, _, _, _ = offline_learner.estimator.estimate()
+            gradient, _, _, _, _, _, _, _, _, _ = offline_learner.estimator.estimate()
             self.learning_rate = self.gradient_updater_outer.get_learning_rate(gradient)
             offline_learner.gradient_updater.learning_rate = self.learning_rate
 

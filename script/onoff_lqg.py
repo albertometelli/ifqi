@@ -1,6 +1,6 @@
 from ifqi.envs.lqg1d import LQG1D
 from ifqi.algorithms.policy_gradient.onoff_learner import OnOffLearner
-from ifqi.algorithms.policy_gradient.policy import GaussianPolicyLinearMeanCholeskyVar, GaussianPolicyLinearMean
+from ifqi.algorithms.policy_gradient.policy import *
 from ifqi.evaluation.trajectory_generator import OnlineTrajectoryGenerator, \
     OfflineTrajectoryGenerator
 from ifqi.algorithms.policy_gradient.policy_gradient_learner import PolicyGradientLearner
@@ -13,6 +13,7 @@ learn_sigma = True
 initial_sigma = 1.
 initial_mu = -0.2
 
+'''
 if learn_sigma:
     behavioral_policy = GaussianPolicyLinearMeanCholeskyVar(initial_mu,
                                                             initial_sigma)
@@ -23,6 +24,18 @@ else:
                                                  initial_sigma)
     target_policy = GaussianPolicyLinearMean(initial_mu,
                                              initial_sigma)
+'''
+
+def feature(state):
+    return np.array([state, 1.]).ravel()
+
+initial_parameter = [0., 0.]
+initial_sigma = 1.
+
+target_policy = GaussianPolicyLinearFeatureMeanCholeskyVar(feature, initial_parameter, initial_sigma, max_feature=1.)
+behavioral_policy = GaussianPolicyLinearFeatureMeanCholeskyVar(feature, initial_parameter, initial_sigma, max_feature=1.)
+
+
 
 learner = OnOffLearner(mdp,
                        behavioral_policy,
@@ -31,21 +44,28 @@ learner = OnOffLearner(mdp,
                        batch_size_incr=10,
                        max_batch_size=3000,
                        select_initial_point=False,
+                       select_optimal_horizon=False,
                        adaptive_stop=True,
-                       optimize_bound=False,
+                       optimize_bound=True,
                        safe_stopping=True,
-                       search_horizon=False,
-                       adapt_batchsize=True,
-                       bound='chebyshev',
+                       search_horizon=True,
+                       adapt_batchsize=False,
+                       search_step_size=True,
+                       bound='student',
                        delta=0.2,
-                       importance_weighting_method='is',
-                       learning_rate=0.002,
+                       importance_weighting_method='pdis',
+                       learning_rate=0.005,
                        estimator='gpomdp',
-                       gradient_updater='vanilla',
+                       gradient_updater='rmsprop',
                        gradient_updater_outer='annelling',
                        max_offline_iterations=50,
                        online_iterations=100,
-                       verbose=1)
+                       verbose=2,
+                       file_offline_epochs='lqg_offline_stud.csv',
+                       file_online_epochs='lqg_online_stud.csv',
+                       natural=False,
+                       normalize_return=False
+                    )
 
 optimal_parameter, history, history_filter = learner.learn()
 history_filter = np.unique(history_filter)
