@@ -1090,7 +1090,6 @@ class SPMI(object):
         self.m_dist_sup.append(np.nan)
         self.m_dist_mean.append(np.nan)
 
-
         # target change check
         p_check_target = self.policy_equiv_check(target_policy, target_policy_old)
         self.p_change.append(p_check_target)
@@ -1114,7 +1113,12 @@ class SPMI(object):
             model_vector = self.mdp.model_vector
             print('\ncurrent_model: {0}'.format(model_vector))
             self.w_current.append(model_vector)
-            self.w_target.append(np.nan)
+
+            if len(self.model_chooser.model_set) == 2:
+                self.w_target.append([np.nan, np.nan])
+
+            if len(self.model_chooser.model_set) == 4:
+                self.w_target.append([np.nan, np.nan, np.nan, np.nan])
 
         # # coefficient computation and print
         # if isinstance(self.model_chooser, SetModelChooser) and len(self.model_chooser.model_set) == 2:
@@ -1309,15 +1313,39 @@ class SPMI(object):
 
         if isinstance(self.model_chooser, SetModelChooser):
 
-            header_string = header_string + ';w_current;w_target'
+            if len(self.model_chooser.model_set) == 2:
 
-            execution_data = [self.iterations, self.evaluations,
-                              self.p_advantages, self.m_advantages,
-                              self.p_dist_sup, self.p_dist_mean,
-                              self.m_dist_sup, self.m_dist_mean,
-                              self.alfas, self.betas, self.p_change,
-                              self.m_change, self.bound,
-                              self.w_current, self.w_target]
+                header_string = header_string + ';w_current[0];w_current[1];w_target[0];w_target[1]'
+
+                current = np.array(self.w_current)
+                target = np.array(self.w_target)
+
+                execution_data = [self.iterations, self.evaluations,
+                                  self.p_advantages, self.m_advantages,
+                                  self.p_dist_sup, self.p_dist_mean,
+                                  self.m_dist_sup, self.m_dist_mean,
+                                  self.alfas, self.betas, self.p_change,
+                                  self.m_change, self.bound,
+                                  current[:, 0], current[:, 1],
+                                  target[:, 0], target[:, 1]]
+
+            if len(self.model_chooser.model_set) == 4:
+                header_string = header_string + ';w_current[0];w_current[1];w_current[2];w_current[3]' \
+                                                ';w_target[0];w_target[1];w_target[2];w_target[3]'
+
+                current = np.array(self.w_current)
+                target = np.array(self.w_target)
+
+                execution_data = [self.iterations, self.evaluations,
+                                  self.p_advantages, self.m_advantages,
+                                  self.p_dist_sup, self.p_dist_mean,
+                                  self.m_dist_sup, self.m_dist_mean,
+                                  self.alfas, self.betas, self.p_change,
+                                  self.m_change, self.bound,
+                                  current[:, 0], current[:, 1],
+                                  current[:, 2], current[:, 3],
+                                  target[:, 0], target[:, 1],
+                                  target[:, 2], target[:, 3]]
 
         execution_data = np.array(execution_data).T
 
@@ -1325,6 +1353,86 @@ class SPMI(object):
             filter = np.arange(0, len(execution_data), len(execution_data) / entries)
             execution_data = execution_data[filter]
 
+
+        np.savetxt(dir_path + '/' + file_name, execution_data,
+                   delimiter=';', header=header_string, fmt='%.30e')
+
+    # public method to save the execution data into
+    # a csv file (directory path as parameter)
+    def save_simulation_opt(self, dir_path, file_name, entries=None):
+
+        header_string = 'iterations;evaluations;p_advantages;' \
+                        'p_dist_sup;p_dist_mean;alfa;beta;p_change;bound'
+
+        # if coefficients not empty we are using a parametric model
+        execution_data = [self.iterations, self.evaluations,
+                          self.p_advantages, self.p_dist_sup,
+                          self.p_dist_mean, self.alfas,
+                          self.betas, self.p_change, self.bound]
+
+        if isinstance(self.model_chooser, SetModelChooser):
+
+            if len(self.model_chooser.model_set) == 2:
+                header_string = header_string + ';m_dist_sup[0];m_dist_sup[1];' \
+                                                'm_dist_mean[0];m_dist_mean[1]' \
+                                                ';m_advantages[0];m_advantages[1]' \
+                                                ';w_current[0];w_current[1]' \
+                                                ';w_target[0];w_target[1]'
+
+                current = np.array(self.w_current)
+                target = np.array(self.w_target)
+                m_dist_sup = np.array(self.m_dist_sup)
+                m_dist_mean = np.array(self.m_dist_mean)
+                m_advantages = np.array(self.m_advantages)
+
+                execution_data = [self.iterations, self.evaluations,
+                                  self.p_advantages, self.p_dist_sup,
+                                  self.p_dist_mean, self.alfas,
+                                  self.betas, self.p_change, self.bound,
+                                  m_dist_sup[:, 0], m_dist_sup[:, 1],
+                                  m_dist_mean[:, 0], m_dist_mean[:, 1],
+                                  m_advantages[:, 0], m_advantages[:, 1],
+                                  current[:, 0], current[:, 1],
+                                  target[:, 0], target[:, 1]]
+
+            if len(self.model_chooser.model_set) == 4:
+                header_string = header_string + ';m_dist_sup[0];m_dist_sup[1]' \
+                                                ';m_dist_sup[2];m_dist_sup[3]' \
+                                                ';m_dist_mean[0];m_dist_mean[1]' \
+                                                ';m_dist_mean[2];m_dist_mean[3]' \
+                                                ';m_advantages[0];m_advantages[1]' \
+                                                ';m_advantages[2];m_advantages[3]' \
+                                                ';w_current[0];w_current[1]' \
+                                                ';w_current[2];w_current[3]' \
+                                                ';w_target[0];w_target[1]' \
+                                                ';w_target[2];w_target[3]'
+
+                current = np.array(self.w_current)
+                target = np.array(self.w_target)
+                m_dist_sup = np.array(self.m_dist_sup)
+                m_dist_mean = np.array(self.m_dist_mean)
+                m_advantages = np.array(self.m_advantages)
+
+                execution_data = [self.iterations, self.evaluations,
+                                  self.p_advantages, self.p_dist_sup,
+                                  self.p_dist_mean, self.alfas,
+                                  self.betas, self.p_change, self.bound,
+                                  m_dist_sup[:, 0], m_dist_sup[:, 1],
+                                  m_dist_sup[:, 2], m_dist_sup[:, 3],
+                                  m_dist_mean[:, 0], m_dist_mean[:, 1],
+                                  m_dist_mean[:, 2], m_dist_mean[:, 3],
+                                  m_advantages[:, 0], m_advantages[:, 1],
+                                  m_advantages[:, 2], m_advantages[:, 3],
+                                  current[:, 0], current[:, 1],
+                                  current[:, 2], current[:, 3],
+                                  target[:, 0], target[:, 1],
+                                  target[:, 2], target[:, 3]]
+
+        execution_data = np.array(execution_data).T
+
+        if entries is not None:
+            filter = np.arange(0, len(execution_data), len(execution_data) / entries)
+            execution_data = execution_data[filter]
 
         np.savetxt(dir_path + '/' + file_name, execution_data,
                    delimiter=';', header=header_string, fmt='%.30e')

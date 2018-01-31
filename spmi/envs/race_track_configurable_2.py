@@ -62,7 +62,7 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
 
         self.max_psucc = max_psucc = 0.9
         self.max_psucc2 = max_psucc2 = 0.9
-        self.min_psucc = min_psucc = 0.7
+        self.min_psucc = min_psucc = 0.797
         self.min_psucc2 = min_psucc2 = 0.1
         self.max_speed = max_speed = 2 * (max(vel) ** 2)
 
