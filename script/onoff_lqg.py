@@ -54,11 +54,11 @@ learner = OnOffLearner(mdp,
                        bound='student',
                        delta=0.2,
                        importance_weighting_method='pdis',
-                       learning_rate=0.005,
+                       learning_rate=10.,
                        estimator='gpomdp',
-                       gradient_updater='rmsprop',
-                       gradient_updater_outer='annelling',
-                       max_offline_iterations=50,
+                       gradient_updater='adanat',
+                       gradient_updater_outer='vanilla',
+                       max_offline_iterations=100,
                        online_iterations=100,
                        verbose=2,
                        file_offline_epochs='lqg_offline_stud.csv',
@@ -71,6 +71,10 @@ optimal_parameter, history, history_filter = learner.learn()
 history_filter = np.unique(history_filter)
 np.save('./history',history)
 np.save('./history_filter',history_filter)
+
+plt.plot(np.array(history)[history_filter])
+
+'''
 
 target_policy = GaussianPolicyLinearMeanCholeskyVar(mu, sigma)
 
@@ -156,3 +160,4 @@ ax.plot(J_theoretical_gpomdp, 'g:', label='GPOMDP')
 ax.set_xlabel('Iteration')
 ax.set_ylabel('Expected return theoretical')
 legend = ax.legend(loc='upper right')
+'''

@@ -11,7 +11,9 @@ from tabulate import tabulate
 from ifqi.utils.tictoc import *
 from joblib import Parallel, delayed
 
-eps = 1e-12
+eps = 1e-24
+
+epsilons = []
 
 class PolicyGradientLearner(object):
 
@@ -282,7 +284,12 @@ class PolicyGradientLearner(object):
         gradient_norm = la.norm(gradient)
         initial_bound_value = bound_value
         penalization = bound_value - avg_return_norm
-        natural_gradient = la.solve(fisher + eps * np.eye(len(gradient)), gradient)
+        natural_gradient = la.solve(fisher,  gradient)
+
+        self.gradient_updater.eps = np.asscalar(np.sqrt(np.dot(natural_gradient, gradient)))
+        epsilons.append((self.gradient_updater.eps, 0))
+        #TODO remove this
+        #fisher = np.eye(fisher.shape[0])
 
         if return_history > 0:
             self.csv_header = 'Iteration,AvgReturnNormalized,AvgReturn,AvgDiscountedReturn,Penalization,M_2,M_inf,BoundValue,GradientNorm,StepSize,Horizon'
@@ -322,6 +329,7 @@ class PolicyGradientLearner(object):
                 pass
                 #print('Real LR: %s' % self.gradient_updater.get_learning_rate(gradient, fisher))
 
+        deltaJ = -np.inf
         while ite < self.max_iter_opt and gradient_norm > self.tol_opt:
 
             theta_old = np.copy(theta) #Backup for safe stopping
@@ -329,6 +337,9 @@ class PolicyGradientLearner(object):
                 theta = self.gradient_updater.update(natural_gradient) #Gradient ascent update
             else:
                 theta = self.gradient_updater.update(gradient, fisher)
+
+            gradient_norm = np.sqrt(np.dot(la.solve(fisher, gradient), gradient))
+            print("GRADIENT F-1 norm: %s " % gradient_norm)
 
             self.target_policy.set_parameter(theta)
             self.estimator.set_target_policy(self.target_policy)
@@ -338,11 +349,15 @@ class PolicyGradientLearner(object):
             old_avg_return_norm = avg_return_norm
             old_penalization = penalization
             old_H_star = H_star
+            old_bound = bound_value
 
             gradient, avg_return_norm, bound_value, H_star, stepwise_avg_return, avg_return, avg_discounted_return, variance, stepwise_variance, fisher = self._estimator_function(baseline_type=self.baseline_type)
             gradient_norm = la.norm(gradient)
             penalization = bound_value - avg_return_norm
-            natural_gradient = la.solve(fisher + eps * np.eye(len(gradient)), gradient)
+            natural_gradient = la.solve(fisher + eps*np.eye(len(fisher)), gradient)
+
+            # TODO remove this
+            #fisher = np.eye(fisher.shape[0])
 
             ite += 1
             if return_history > 0:
@@ -409,6 +424,7 @@ class PolicyGradientLearner(object):
                             self.estimator.set_target_policy(self.target_policy)
                             self.gradient_updater.set_parameter(theta)
                             avg_return_norm, gradient, penalization, H_star = old_avg_return_norm, old_gradient, old_penalization, old_H_star
+                            bound_value = old_bound
                             stepwise_avg_return = old_stepwise_avg_return
                             gradient_norm = la.norm(gradient)
                             ite -= 1
@@ -425,6 +441,134 @@ class PolicyGradientLearner(object):
                 else:
                     print('Terminating OFFLINE update.')
                     break
+
+            if isinstance(self.gradient_updater, FisherUpdater):
+
+                gradient_norm = np.sqrt(np.dot(la.solve(fisher + eps*np.eye(len(fisher)), gradient), gradient))
+                if (deltaJ < 0.1 and deltaJ > -np.inf) or  gradient_norm <0.1:
+                #if self.gradient_updater.eps < 1e-5 or gradient_norm < 1e-1:
+                    break
+
+                print('EXPECTED gain %s' % self.gradient_updater.eps)
+                print('BUT got %s' % (bound_value - old_bound))
+
+                '''
+                #if bound_value - self.gradient_updater.eps/2. < old_bound:
+                #if bound_value < old_bound:
+                if bound_value - old_bound >= self.gradient_updater.eps * (np.sqrt(2) - 1./2):
+                    self.gradient_updater.eps *= 2
+                    #self.gradient_updater.eps = bound_value - old_bound
+                else:
+                    if bound_value - old_bound < 0:
+                        print('SAFE STOPPING')
+                        theta = np.copy(theta_old)
+                        self.target_policy.set_parameter(theta)
+                        self.estimator.set_target_policy(self.target_policy)
+                        self.gradient_updater.set_parameter(theta)
+                        avg_return_norm, gradient, penalization, H_star = old_avg_return_norm, old_gradient, old_penalization, old_H_star
+                        stepwise_avg_return = old_stepwise_avg_return
+                        gradient_norm = la.norm(gradient)
+                        ite -= 1
+
+                        if return_history:
+                            history = history[:-1]
+
+                    self.gradient_updater.eps = self.gradient_updater.eps ** 2 / (4 * (self.gradient_updater.eps - (bound_value - old_bound))) - max(0, bound_value - old_bound)
+                '''
+                '''
+                if bound_value - old_bound >= self.gradient_updater.eps * (np.sqrt(2) - 1. / 2):
+                    new_eps = self.gradient_updater.eps * 2
+                else:
+                    new_eps = self.gradient_updater.eps ** 2 / (
+                                4 * (self.gradient_updater.eps - (bound_value - old_bound))) - max(0, bound_value - old_bound)
+
+                if abs(new_eps - self.gradient_updater.eps) / self.gradient_updater.eps > 0.1 or bound_value - old_bound < 0:
+                    print('SAFE STOPPING')
+
+                    if bound_value - old_bound >= self.gradient_updater.eps * (np.sqrt(2) - 1. / 2):
+                        new_eps = self.gradient_updater.eps * 2
+                    else:
+                        new_eps = self.gradient_updater.eps ** 2 / (
+                                4 * (self.gradient_updater.eps - (bound_value - old_bound)))
+
+                    theta = np.copy(theta_old)
+                    self.target_policy.set_parameter(theta)
+                    self.estimator.set_target_policy(self.target_policy)
+                    self.gradient_updater.set_parameter(theta)
+                    avg_return_norm, gradient, penalization, H_star = old_avg_return_norm, old_gradient, old_penalization, old_H_star
+                    stepwise_avg_return = old_stepwise_avg_return
+                    bound_value = old_bound
+                    gradient_norm = la.norm(gradient)
+                    ite -= 1
+
+                    if return_history:
+                        history = history[:-1]
+
+                self.gradient_updater.eps = new_eps
+                    
+                print("UPDATING eps %s" % self.gradient_updater.eps)
+                '''
+
+
+                if bound_value - old_bound >= self.gradient_updater.eps * (np.sqrt(2) - 1. / 2):
+                    new_eps = self.gradient_updater.eps * 2
+                else:
+                    new_eps = self.gradient_updater.eps ** 2 / (
+                            2 * (self.gradient_updater.eps - (bound_value - old_bound)))
+
+                if (not bound_value - old_bound < deltaJ) and (abs(new_eps - self.gradient_updater.eps) / self.gradient_updater.eps > 0.02 or bound_value - old_bound < 0):
+                    print('SAFE STOPPING')
+                    deltaJ = bound_value - old_bound
+
+                    bk_theta = np.copy(theta)
+                    bk_avg_return_norm, bk_gradient, bk_penalization, bk_H_star = avg_return_norm, gradient, penalization, H_star
+                    bk_stepwise_avg_return = stepwise_avg_return
+                    bk_bound_value = bound_value
+                    bk_gradient_norm = gradient_norm
+                    bk_history = history[:-1]
+                    bk_fisher = fisher
+
+
+                    theta = np.copy(theta_old)
+                    self.target_policy.set_parameter(theta)
+                    self.estimator.set_target_policy(self.target_policy)
+                    self.gradient_updater.set_parameter(theta)
+                    avg_return_norm, gradient, penalization, H_star = old_avg_return_norm, old_gradient, old_penalization, old_H_star
+                    stepwise_avg_return = old_stepwise_avg_return
+                    bound_value = old_bound
+                    gradient_norm = la.norm(gradient)
+                    ite -= 1
+
+                    if return_history:
+                        history = history[:-1]
+
+                    print("UPDATING eps %s" % self.gradient_updater.eps)
+                    self.gradient_updater.eps = new_eps
+                    epsilons[-1] = (epsilons[-1][0], deltaJ)
+                else:
+                    if bound_value - old_bound < deltaJ:
+                        print('STOP! %s < %s' % (deltaJ, bound_value - old_bound))
+                        theta = np.copy(bk_theta)
+                        self.target_policy.set_parameter(theta)
+                        self.estimator.set_target_policy(self.target_policy)
+                        self.gradient_updater.set_parameter(theta)
+                        avg_return_norm, gradient, penalization, H_star, fisher = bk_avg_return_norm, bk_gradient, bk_penalization, bk_H_star, bk_fisher
+                        stepwise_avg_return = bk_stepwise_avg_return
+                        gradient_norm = bk_gradient_norm
+
+                        if return_history:
+                            history.append(bk_history)
+
+                    deltaJ = bound_value - old_bound
+                    bound_value = bk_bound_value
+                    print("REINITIALIZING eps %s" % self.gradient_updater.eps)
+                    self.gradient_updater.eps = np.asscalar(np.sqrt(np.dot(gradient, la.solve(fisher + eps*np.eye(len(fisher)), gradient))))
+                    epsilons[-1] = (epsilons[-1][0], deltaJ)
+                    epsilons.append('end-line-search: new esp %s' % new_eps)
+                    deltaJ = -np.inf
+
+                epsilons.append((self.gradient_updater.eps, 0.))
+                print(epsilons)
 
         return theta, history
 
@@ -515,6 +659,16 @@ class GradientEstimator(object):
 
     def compute_baseline(self, baseline_type, traj_log_gradients, ws, traj_returns):
         pass
+
+    def estimate_vec(self, dataset, pdf_behavioral):
+        states = dataset[:, self.state_index]
+        actions = dataset[:, self.action_index]
+        disc_rewards = dataset[:, self.reward_index] #already discounted
+
+        pdf_target = self.target_policy.pdf_vec(states, actions)
+        gradient_log_policy = self.target_policy.gradient_log_vec(states, actions)
+
+
 
     def estimate(self, baseline_type='vectorial'):
 

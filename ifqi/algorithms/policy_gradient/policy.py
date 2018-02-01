@@ -494,6 +494,9 @@ class GaussianPolicyLinearMeanFeatures(ParametricPolicy):
     def pdf(self, state, action):
         return multivariate_normal.pdf(action, self._mean(state), self.covar)
 
+    def pdf_vec(self, states, actions):
+        return multivariate_normal.pdf(actions, np.array(map(lambda x: self._mean(x), states)), self.covar)
+
     def gradient_log(self, state, action, vectorize=True):
         action = np.array(action, ndmin=1)[:, np.newaxis]
         feature = np.array(self.features(state), ndmin=1)[:, np.newaxis]
@@ -506,7 +509,6 @@ class GaussianPolicyLinearMeanFeatures(ParametricPolicy):
             return self.from_param_to_vec(grad, grad_Lambda)
         else:
             return grad, grad_Lambda
-
 
     def get_dimension(self):
         return self.dimension

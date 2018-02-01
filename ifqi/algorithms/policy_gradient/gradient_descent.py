@@ -212,11 +212,12 @@ class FisherUpdater(GradientDescent):
 
     def update(self, dx, riemann_tensor=None):
         gradient = la.solve(riemann_tensor, dx)
-        lr = 1./np.asscalar(np.dot(gradient, dx))
+        lr = 1. / np.asscalar(np.dot(gradient, dx))
+        print('LR %s' % lr)
 
         if self.ascent:
-            self.x += lr * gradient
+            self.x += self.eps * lr * gradient
         else:
-            self.x -= lr * gradient
+            self.x -= self.eps * lr * gradient
 
         return self.x
