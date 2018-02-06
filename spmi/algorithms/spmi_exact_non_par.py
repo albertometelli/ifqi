@@ -868,9 +868,16 @@ class SPMI(object):
             model, delta_mu, U)
         target_model_old = target_model
 
+        '''
+        mask = np.ones(self.model_chooser.model_set[0].get_matrix().shape)
+        for i in range(4):
+            nnz = np.where(self.model_chooser.model_set[i].get_matrix() != 0.)
+            mask[nnz] = 0.
+        '''
+
         # check convergence condition
         convergence = eps / (1 - gamma)
-        while ((p_er_adv + m_er_adv) > convergence) and self.iteration < iteration_horizon:
+        while (p_er_adv > convergence or m_er_adv > convergence) and self.iteration < iteration_horizon:
 
             target_policies = [(target_policy, p_er_adv, p_dist_sup, p_dist_mean)]
             if self.use_target_trick:
@@ -899,6 +906,8 @@ class SPMI(object):
 
             for target_policy, p_er_adv, p_dist_sup, p_dist_mean in target_policies:
                 for target_model, m_er_adv, m_dist_sup, m_dist_mean in target_models:
+
+                    print(m_er_adv)
 
                     alpha0 = ((1 - gamma) * p_er_adv) / (self.delta_q * gamma *
                                 p_dist_sup * p_dist_mean + 1e-24)
@@ -935,6 +944,8 @@ class SPMI(object):
                 policy = self.policy_combination(alpha_star, target_policy_star, policy)
             if beta_star > 0:
                 model = self.model_combination(beta_star, target_model_star, model)
+
+            #assert(np.max(model.get_matrix() * mask) == 0.)
 
             # performance evaluation
             Q = evaluator.compute_q_function(policy, model, reward, gamma, horizon=horizon)
@@ -984,7 +995,7 @@ class SPMI(object):
     def model_combination(self, beta, target, current):
         new_model = model_convex_combination(self.mdp.P, target, current, beta)
         self.mdp.set_model(new_model.get_rep())
-        self.mdp.P_sa = new_model.get_matrix()
+        #self.mdp.P_sa = new_model.get_matrix()
         return new_model
 
     # method which compute the new combination
@@ -1052,6 +1063,19 @@ class SPMI(object):
             target_vector[target_index] = 1
             new_model_vector = beta_star * target_vector + (1 - beta_star) * model_vector
             self.mdp.model_vector = new_model_vector
+
+            '''
+            new_model = np.zeros(self.model_chooser.model_set[0].get_matrix().shape)
+            for i in range(n_models):
+                new_model += self.mdp.model_vector[i] * self.model_chooser.model_set[i].get_matrix()
+
+            el = np.argmax(np.abs((new_model- self.mdp.P_sa)))
+            print(el)
+            print(new_model.ravel()[el])
+            print(self.mdp.P_sa.ravel()[el])
+            assert(np.allclose(new_model, self.mdp.P_sa))
+            '''
+
             print('\ntarget_model: {0}'.format(target_vector))
             print('current_model: {0}'.format(new_model_vector))
             self.w_current.append(new_model_vector)
@@ -1187,6 +1211,12 @@ class SPMI(object):
             print('current_model: {0}'.format(new_model_vector))
             self.w_current.append(new_model_vector)
             self.w_target.append(target_vector)
+
+            new_model = np.zeros(self.model_chooser.model_set[0].get_matrix().shape)
+            for i in range(n_models):
+                new_model += self.mdp.model_vector[i] * self.model_chooser.model_set[i].get_matrix()
+
+            assert (np.allclose(new_model, self.mdp.P_sa))
 
         # # coefficient computation and print
         # if isinstance(self.model_chooser, SetModelChooser) and len(self.model_chooser.model_set) == 2:

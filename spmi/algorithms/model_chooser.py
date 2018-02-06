@@ -61,6 +61,7 @@ class SetModelChooser(ModelChooser):
             er_advantages[i] = evaluator.compute_model_er_advantage(self.model_set[i], model, U,
                                                  delta_mu)
 
+        print(er_advantages)
         index = np.argmax(er_advantages)
         target_model = self.model_set[index]
         er_advantage = er_advantages[index]

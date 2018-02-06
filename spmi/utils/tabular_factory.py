@@ -41,5 +41,4 @@ def model_from_matrix(model_matrix, original_model, nS=None, nA=None):
             for elem in temp:
                 model_rep[s][a].append((elem[0] / prob_sum, elem[1], elem[2], elem[3]))
 
-
     return TabularModel(model_rep, nS, nA)

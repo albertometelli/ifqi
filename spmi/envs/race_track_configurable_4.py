@@ -225,6 +225,9 @@ class RaceTrackConfigurableEnv(discrete.DiscreteEnv):
                                     append_if_new(li_hs_b, (psuc_hs * pfail, nS-1, 0., True))
                                     append_if_new(li_ls_b, (psuc_ls * pfail, nS-1, 0., True))
 
+                                    append_if_new(li_hs_nb, (0., nS - 1, 0., True))
+                                    append_if_new(li_ls_nb, (0., nS - 1, 0., True))
+
                                     # FAILED ACTION TRANSITIONS
                                     pins_hs = 1 - psuc_hs
                                     pins_ls = 1 - psuc_ls

@@ -11,7 +11,7 @@ import os
 
 track = 'race_straight'
 simulation_name = 'simul_4_comparison'
-dir_path = "/home/deep/mirco/spmi/simulations/data/" + simulation_name
+dir_path = "./data/" + simulation_name
 
 if not os.path.exists(dir_path):
     os.makedirs(dir_path)
@@ -34,8 +34,8 @@ policy_chooser = GreedyPolicyChooser(mdp.nS, mdp.nA)
 model_chooser = SetModelChooser(model_set, mdp.nS, mdp.nA)
 
 eps = 0.0
-spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=10, use_target_trick=True, delta_q=1)
-
+spmi = SPMI(mdp, eps, policy_chooser, model_chooser, max_iter=100000, use_target_trick=True, delta_q=1)
+'''
 #-------------------------------------------------------------------------------
 #SPMI
 spmi.use_target_trick = False
@@ -99,7 +99,7 @@ int_m_change = np.cumsum(1 - np.array(spmi.m_change))
 int_coefficient = np.array(spmi.w_current)
 int_bound = np.array(spmi.bound)
 spmi.save_simulation(dir_path,  'nofull.csv')
-
+'''
 #-------------------------------------------------------------------------------
 #SPMI alternated
 mdp.set_initial_configuration(original_model)
@@ -120,7 +120,7 @@ alt_m_change = np.cumsum(1 - np.array(spmi.m_change))
 alt_coefficient = np.array(spmi.w_current)
 alt_bound = np.array(spmi.bound)
 spmi.save_simulation(dir_path, 'alt.csv')
-
+'''
 #-------------------------------------------------------------------------------
 #SPMI sequential
 mdp.set_initial_configuration(original_model)
@@ -218,3 +218,4 @@ plt.plot(seq_iterations, seq_bound, color='r', label='sequential')
 plt.plot(int_iterations, int_bound, color='k', linestyle='dotted', label='no full step')
 plt.legend(loc='best', fancybox=True)
 plt.savefig(dir_path + "/bound comparison")
+'''
